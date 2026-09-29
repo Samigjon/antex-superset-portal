@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Antex Control</title>
+  <link rel="icon" href="{{ url_for('static', filename='antex.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="admin-page">
+  <section id="loginView" class="login-shell">
+    <form id="loginForm" class="login-panel">
+      <img class="login-logo" src="{{ url_for('static', filename='antex.svg') }}" alt="Antex">
+      <div class="field">
+        <label for="loginUsername">Login</label>
+        <input id="loginUsername" name="username" autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="loginPassword">Parol</label>
+        <div class="password-wrap">
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+          <button class="icon-button password-toggle" type="button" title="Parolni ko'rsatish" aria-label="Parolni ko'rsatish">
+            <span class="eye-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+      <p id="loginError" class="form-error" role="alert"></p>
+      <button class="primary-button" type="submit">Kirish</button>
+    </form>
+  </section>
+
+  <div id="appView" class="app-shell" hidden>
+    <aside class="sidebar">
+      <a class="sidebar-brand" href="/" aria-label="Antex bosh sahifa">
+        <img src="{{ url_for('static', filename='antex.svg') }}" alt="Antex">
+      </a>
+      <nav class="sidebar-nav" aria-label="Asosiy navigatsiya">
+        <button class="nav-item active" type="button" data-page="users">
+          <span class="nav-icon users-icon" aria-hidden="true"></span>
+          <span>Foydalanuvchilar</span>
+        </button>
+        <button class="nav-item" type="button" data-page="datasets">
+          <span class="nav-icon database-icon" aria-hidden="true"></span>
+          <span>SQL datasetlar</span>
+        </button>
+      </nav>
+      <div class="sidebar-user">
+        <div class="avatar" id="userAvatar">A</div>
+        <div class="sidebar-user-copy">
+          <strong id="currentName">Administrator</strong>
+          <span id="currentRole">Admin</span>
+        </div>
+        <button id="logoutButton" class="icon-button logout-icon" type="button" title="Chiqish" aria-label="Chiqish"></button>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button id="menuButton" class="icon-button menu-icon" type="button" title="Menyuni ochish" aria-label="Menyuni ochish"></button>
+        <div>
+          <p class="eyebrow">ANTEX CONTROL</p>
+          <h1 id="pageTitle">Foydalanuvchilar</h1>
+        </div>
+        <button id="addUserButton" class="primary-button compact" type="button">
+          <span class="plus-icon" aria-hidden="true"></span>
+          Foydalanuvchi qo'shish
+        </button>
+      </header>
+
+      <section id="usersPage" class="content-section">
+        <div class="table-tools">
+          <label class="search-field">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input id="userSearch" type="search" placeholder="Foydalanuvchini qidirish" aria-label="Foydalanuvchini qidirish">
+          </label>
+          <span id="userCount" class="count-label"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Foydalanuvchi</th>
+                <th>Login</th>
+                <th>Rol</th>
+                <th>Holat</th>
+                <th>Yaratilgan</th>
+                <th><span class="sr-only">Amallar</span></th>
+              </tr>
+            </thead>
+            <tbody id="usersTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="datasetsPage" class="content-section" hidden>
+        <div class="empty-state">
+          <span class="empty-database database-icon" aria-hidden="true"></span>
+          <h2>SQL datasetlar</h2>
+          <p>Superset ulanishi keyingi bosqichda shu yerga qo'shiladi.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="userDialog" class="modal">
+    <form id="userForm" method="dialog">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">FOYDALANUVCHI</p>
+          <h2 id="dialogTitle">Yangi foydalanuvchi</h2>
+        </div>
+        <button id="closeDialog" class="icon-button close-icon" type="button" title="Yopish" aria-label="Yopish"></button>
+      </div>
+      <input id="userId" type="hidden">
+      <div class="form-grid">
+        <div class="field full-width">
+          <label for="fullName">To'liq ism</label>
+          <input id="fullName" required maxlength="80">
+        </div>
+        <div class="field">
+          <label for="username">Login</label>
+          <input id="username" required minlength="3" maxlength="40" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="role">Rol</label>
+          <select id="role">
+            <option value="viewer">Kuzatuvchi</option>
+            <option value="editor">Muharrir</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </div>
+        <div class="field full-width">
+          <label for="password">Parol <span id="passwordHint"></span></label>
+          <input id="password" type="password" minlength="8" autocomplete="new-password">
+        </div>
+        <label id="activeField" class="switch-row full-width" hidden>
+          <span>
+            <strong>Faol foydalanuvchi</strong>
+            <small>Tizimga kirish huquqi</small>
+          </span>
+          <input id="isActive" type="checkbox" checked>
+          <span class="switch" aria-hidden="true"></span>
+        </label>
+      </div>
+      <p id="userFormError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelDialog" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="primary-button" type="submit">Saqlash</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="deleteDialog" class="modal confirm-modal">
+    <form id="deleteForm" method="dialog">
+      <div class="danger-mark">!</div>
+      <h2>Foydalanuvchini o'chirish</h2>
+      <p><strong id="deleteUserName"></strong> hisobini o'chirishni tasdiqlaysizmi?</p>
+      <p id="deleteError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelDelete" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="danger-button" type="submit">O'chirish</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="{{ url_for('static', filename='admin.js') }}" defer></script>
+</body>
+</html>
+
