@@ -129,7 +129,7 @@ function renderDatasets() {
   elements.datasetsTableWrap.hidden = state.datasets.length === 0;
   elements.datasetsTable.innerHTML = datasets.map((dataset) => `
     <tr>
-      <td><div class="dataset-name"><span class="database-icon" aria-hidden="true"></span><strong>${escapeHtml(dataset.table_name)}</strong></div></td>
+      <td><div class="dataset-name"><strong>${escapeHtml(dataset.table_name)}</strong></div></td>
       <td>${escapeHtml(dataset.schema_name || "-")}</td>
       <td>${escapeHtml(dataset.database_name || "-")}</td>
       <td><span class="dataset-id">#${dataset.superset_id}</span></td>

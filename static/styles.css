@@ -450,10 +450,6 @@ select:focus-visible {
   gap: 12px;
 }
 
-.dataset-name .database-icon {
-  color: #7e858f;
-}
-
 .dataset-name strong {
   font-weight: 650;
 }
