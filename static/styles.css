@@ -476,6 +476,29 @@ a.secondary-button {
   min-width: 1280px;
 }
 
+.datasets-table th:last-child,
+.datasets-table td:last-child {
+  position: sticky;
+  right: 0;
+  width: 132px;
+  min-width: 132px;
+  background: var(--panel);
+  box-shadow: -10px 0 18px rgba(8, 9, 11, 0.28);
+}
+
+.datasets-table th:last-child {
+  z-index: 2;
+  background: #17191d;
+}
+
+.datasets-table td:last-child {
+  z-index: 1;
+}
+
+.datasets-table tbody tr:hover td:last-child {
+  background: #171a1e;
+}
+
 .tag-list {
   display: flex;
   max-width: 300px;
