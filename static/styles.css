@@ -939,7 +939,9 @@ tbody tr:hover {
     width: 42px;
     padding: 0;
     overflow: hidden;
-    color: transparent;
+    gap: 0;
+    color: white;
+    font-size: 0;
   }
 
   .compact .icon {
