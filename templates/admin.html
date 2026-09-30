@@ -20,7 +20,7 @@
         <div class="password-wrap">
           <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
           <button class="icon-button password-toggle" type="button" title="Parolni ko'rsatish" aria-label="Parolni ko'rsatish">
-            <span class="eye-icon" aria-hidden="true"></span>
+            <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#eye"></use></svg>
           </button>
         </div>
       </div>
@@ -36,11 +36,11 @@
       </a>
       <nav class="sidebar-nav" aria-label="Asosiy navigatsiya">
         <button class="nav-item active" type="button" data-page="users">
-          <span class="nav-icon users-icon" aria-hidden="true"></span>
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#users"></use></svg>
           <span>Foydalanuvchilar</span>
         </button>
         <button class="nav-item" type="button" data-page="datasets">
-          <span class="nav-icon database-icon" aria-hidden="true"></span>
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#database"></use></svg>
           <span>SQL datasetlar</span>
         </button>
       </nav>
@@ -50,31 +50,41 @@
           <strong id="currentName">Administrator</strong>
           <span id="currentRole">Admin</span>
         </div>
-        <button id="logoutButton" class="icon-button logout-icon" type="button" title="Chiqish" aria-label="Chiqish"></button>
+        <button id="logoutButton" class="icon-button" type="button" title="Chiqish" aria-label="Chiqish">
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#log-out"></use></svg>
+        </button>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
-        <button id="menuButton" class="icon-button menu-icon" type="button" title="Menyuni ochish" aria-label="Menyuni ochish"></button>
+        <button id="menuButton" class="icon-button menu-button" type="button" title="Menyuni ochish" aria-label="Menyuni ochish">
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#menu"></use></svg>
+        </button>
         <div>
           <p class="eyebrow">ANTEX CONTROL</p>
           <h1 id="pageTitle">Foydalanuvchilar</h1>
         </div>
-        <button id="addUserButton" class="primary-button compact" type="button">
-          <span class="plus-icon" aria-hidden="true"></span>
-          Foydalanuvchi qo'shish
-        </button>
-        <button id="syncDatasetsButton" class="primary-button compact" type="button" hidden>
-          <span class="refresh-icon" aria-hidden="true"></span>
-          Yangilash
-        </button>
+        <div class="topbar-actions">
+          <button id="addUserButton" class="primary-button compact" type="button">
+            <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#user-plus"></use></svg>
+            Foydalanuvchi qo'shish
+          </button>
+          <button id="addDatasetButton" class="primary-button compact" type="button" hidden>
+            <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#file-plus"></use></svg>
+            Dataset qo'shish
+          </button>
+          <button id="syncDatasetsButton" class="secondary-button compact" type="button" hidden>
+            <svg class="icon refresh-icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#refresh"></use></svg>
+            Yangilash
+          </button>
+        </div>
       </header>
 
       <section id="usersPage" class="content-section">
         <div class="table-tools">
           <label class="search-field">
-            <span class="search-icon" aria-hidden="true"></span>
+            <svg class="icon search-icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#search"></use></svg>
             <input id="userSearch" type="search" placeholder="Foydalanuvchini qidirish" aria-label="Foydalanuvchini qidirish">
           </label>
           <span id="userCount" class="count-label"></span>
@@ -99,13 +109,13 @@
       <section id="datasetsPage" class="content-section" hidden>
         <div class="table-tools dataset-tools">
           <label class="search-field">
-            <span class="search-icon" aria-hidden="true"></span>
+            <svg class="icon search-icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#search"></use></svg>
             <input id="datasetSearch" type="search" placeholder="Datasetni qidirish" aria-label="Datasetni qidirish">
           </label>
           <span id="datasetCount" class="count-label"></span>
         </div>
         <div id="datasetsEmpty" class="empty-state" hidden>
-          <span class="empty-database database-icon" aria-hidden="true"></span>
+          <svg class="empty-database" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#database"></use></svg>
           <h2>Datasetlar topilmadi</h2>
           <p>Superset bilan sinxronlash uchun yuqoridagi yangilash tugmasini bosing.</p>
         </div>
@@ -136,7 +146,9 @@
           <p class="eyebrow">FOYDALANUVCHI</p>
           <h2 id="dialogTitle">Yangi foydalanuvchi</h2>
         </div>
-        <button id="closeDialog" class="icon-button close-icon" type="button" title="Yopish" aria-label="Yopish"></button>
+        <button id="closeDialog" class="icon-button" type="button" title="Yopish" aria-label="Yopish">
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg>
+        </button>
       </div>
       <input id="userId" type="hidden">
       <div class="form-grid">
@@ -172,7 +184,7 @@
       <p id="userFormError" class="form-error" role="alert"></p>
       <div class="modal-actions">
         <button id="cancelDialog" class="secondary-button" type="button">Bekor qilish</button>
-        <button class="primary-button" type="submit">Saqlash</button>
+        <button class="primary-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#save"></use></svg>Saqlash</button>
       </div>
     </form>
   </dialog>
@@ -185,7 +197,53 @@
       <p id="deleteError" class="form-error" role="alert"></p>
       <div class="modal-actions">
         <button id="cancelDelete" class="secondary-button" type="button">Bekor qilish</button>
-        <button class="danger-button" type="submit">O'chirish</button>
+        <button class="danger-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#trash"></use></svg>O'chirish</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="datasetCreateDialog" class="modal dataset-modal">
+    <form id="datasetCreateForm" method="dialog">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">SUPERSET DATASET</p>
+          <h2>Yangi SQL dataset</h2>
+        </div>
+        <button id="closeDatasetCreate" class="icon-button" type="button" title="Yopish" aria-label="Yopish">
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg>
+        </button>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="datasetCreateDatabase">Ma'lumotlar bazasi</label>
+          <select id="datasetCreateDatabase" required></select>
+        </div>
+        <div class="field">
+          <label for="datasetCreateSchema">Schema</label>
+          <input id="datasetCreateSchema" maxlength="250" placeholder="ad_reporting">
+        </div>
+        <div class="field full-width">
+          <label for="datasetCreateName">Dataset nomi</label>
+          <input id="datasetCreateName" required maxlength="250">
+        </div>
+        <div class="field full-width">
+          <label for="datasetCreateSql">SQL</label>
+          <textarea id="datasetCreateSql" class="code-input" required rows="12" spellcheck="false" placeholder="SELECT ..."></textarea>
+        </div>
+        <div class="field full-width">
+          <label for="datasetCreateTags">Taglar <span>(vergul bilan ajrating)</span></label>
+          <input id="datasetCreateTags" maxlength="3000" placeholder="Masalan: Savdo, Hisobot">
+        </div>
+        <div class="field full-width">
+          <label for="datasetCreateDescription">Tavsif</label>
+          <textarea id="datasetCreateDescription" maxlength="5000" rows="3"></textarea>
+        </div>
+      </div>
+      <p class="form-note">Dataset saqlanganda darhol asosiy Supersetda ham yaratiladi.</p>
+      <p id="datasetCreateError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelDatasetCreate" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="primary-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#save"></use></svg>Datasetni yaratish</button>
       </div>
     </form>
   </dialog>
@@ -197,7 +255,9 @@
           <p class="eyebrow">DATASET</p>
           <h2 id="datasetViewTitle"></h2>
         </div>
-        <button id="closeDatasetView" class="icon-button close-icon" type="button" title="Yopish" aria-label="Yopish"></button>
+        <button id="closeDatasetView" class="icon-button" type="button" title="Yopish" aria-label="Yopish">
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg>
+        </button>
       </div>
       <dl class="dataset-details">
         <div><dt>Schema</dt><dd id="datasetViewSchema"></dd></div>
@@ -211,7 +271,7 @@
         <div id="datasetViewSqlRow" class="full-width"><dt>SQL</dt><dd><pre id="datasetViewSql"></pre></dd></div>
       </dl>
       <div class="modal-actions">
-        <a id="openInSuperset" class="secondary-button" href="#" target="_blank" rel="noopener">Supersetda ochish</a>
+        <a id="openInSuperset" class="secondary-button" href="#" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#external-link"></use></svg>Supersetda ochish</a>
         <button id="closeDatasetViewAction" class="primary-button" type="button">Yopish</button>
       </div>
     </div>
@@ -224,7 +284,9 @@
           <p class="eyebrow">SUPERSET DATASET</p>
           <h2>Datasetni tahrirlash</h2>
         </div>
-        <button id="closeDatasetEdit" class="icon-button close-icon" type="button" title="Yopish" aria-label="Yopish"></button>
+        <button id="closeDatasetEdit" class="icon-button" type="button" title="Yopish" aria-label="Yopish">
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg>
+        </button>
       </div>
       <input id="datasetEditId" type="hidden">
       <div class="form-grid">
@@ -253,7 +315,7 @@
       <p id="datasetEditError" class="form-error" role="alert"></p>
       <div class="modal-actions">
         <button id="cancelDatasetEdit" class="secondary-button" type="button">Bekor qilish</button>
-        <button class="primary-button" type="submit">Saqlash</button>
+        <button class="primary-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#save"></use></svg>Saqlash</button>
       </div>
     </form>
   </dialog>
@@ -268,7 +330,7 @@
       <p id="datasetDeleteError" class="form-error" role="alert"></p>
       <div class="modal-actions">
         <button id="cancelDatasetDelete" class="secondary-button" type="button">Bekor qilish</button>
-        <button class="danger-button" type="submit">Supersetdan o'chirish</button>
+        <button class="danger-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#trash"></use></svg>Supersetdan o'chirish</button>
       </div>
     </form>
   </dialog>

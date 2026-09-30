@@ -414,6 +414,32 @@ def list_datasets():
     return jsonify({"datasets": result})
 
 
+@app.get("/api/superset/databases")
+@require_admin
+def list_superset_databases():
+    try:
+        client = superset_client()
+        payload = superset_api(
+            client,
+            "GET",
+            "api/v1/database/",
+            "Superset database ro'yxatini olib bo'lmadi",
+            params={"q": "(page:0,page_size:100)"},
+        )
+    except SupersetConnectionError as error:
+        app.logger.warning("Superset database read failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    databases = [
+        {
+            "id": int(database["id"]),
+            "name": database.get("database_name") or database.get("name") or "",
+            "backend": database.get("backend") or "",
+        }
+        for database in payload.get("result", [])
+    ]
+    return jsonify({"databases": databases})
+
+
 @app.post("/api/datasets/sync")
 @require_admin
 def sync_datasets():
@@ -504,6 +530,85 @@ def validate_dataset_payload(payload):
         "sql": sql,
         "tags": tags,
     }, None
+
+
+def validate_new_dataset_payload(payload):
+    data, error = validate_dataset_payload(payload)
+    if error:
+        return None, error
+    try:
+        database_id = int(payload.get("database_id"))
+    except (TypeError, ValueError):
+        return None, "Ma'lumotlar bazasini tanlang"
+    if database_id < 1:
+        return None, "Ma'lumotlar bazasini tanlang"
+    if data["sql"] is None:
+        return None, "SQL so'rovini kiriting"
+    data["database_id"] = database_id
+    return data, None
+
+
+@app.post("/api/datasets")
+@require_admin
+def create_dataset():
+    data, error = validate_new_dataset_payload(request.get_json(silent=True) or {})
+    if error:
+        return jsonify({"error": error}), 400
+    dataset_id = None
+    try:
+        client = superset_client(write=True)
+        created = superset_api(
+            client,
+            "POST",
+            "api/v1/dataset/",
+            "Datasetni Supersetda yaratib bo'lmadi",
+            json={
+                "database": data["database_id"],
+                "schema": data["schema"],
+                "table_name": data["table_name"],
+                "sql": data["sql"],
+            },
+        )
+        result = created.get("result") or {}
+        dataset_id = created.get("id") or result.get("id")
+        if not dataset_id:
+            raise SupersetConnectionError("Superset yaratilgan dataset ID sini qaytarmadi")
+        dataset_id = int(dataset_id)
+
+        if data["description"]:
+            superset_api(
+                client,
+                "PUT",
+                f"api/v1/dataset/{dataset_id}",
+                "Dataset tavsifini saqlab bo'lmadi",
+                json={"description": data["description"]},
+            )
+        if data["tags"]:
+            superset_api(
+                client,
+                "POST",
+                f"api/v1/tag/4/{dataset_id}/",
+                "Dataset taglarini qo'shib bo'lmadi",
+                json={"properties": {"tags": data["tags"]}},
+            )
+        sync_superset_datasets(client)
+    except SupersetConnectionError as superset_error:
+        app.logger.warning("Superset dataset create failed: %s", superset_error)
+        if dataset_id:
+            try:
+                sync_superset_datasets(client)
+            except SupersetConnectionError:
+                pass
+            return jsonify(
+                {
+                    "error": (
+                        f"Dataset Supersetda #{dataset_id} ID bilan yaratildi, "
+                        f"ammo qo'shimcha ma'lumotlarni saqlashda xato yuz berdi: {superset_error}"
+                    )
+                }
+            ), 502
+        return jsonify({"error": str(superset_error)}), superset_error.status_code
+    return jsonify({"ok": True, "id": dataset_id}), 201
 
 
 @app.put("/api/datasets/<int:dataset_id>")

@@ -3,6 +3,7 @@ const state = {
   currentUser: null,
   users: [],
   datasets: [],
+  databases: [],
   deleteTarget: null,
   datasetDetails: new Map(),
   datasetDeleteTarget: null,
@@ -22,6 +23,7 @@ const elements = {
   datasetCount: document.querySelector("#datasetCount"),
   datasetSearch: document.querySelector("#datasetSearch"),
   addUserButton: document.querySelector("#addUserButton"),
+  addDatasetButton: document.querySelector("#addDatasetButton"),
   syncDatasetsButton: document.querySelector("#syncDatasetsButton"),
   userDialog: document.querySelector("#userDialog"),
   userForm: document.querySelector("#userForm"),
@@ -30,6 +32,9 @@ const elements = {
   deleteForm: document.querySelector("#deleteForm"),
   deleteError: document.querySelector("#deleteError"),
   datasetViewDialog: document.querySelector("#datasetViewDialog"),
+  datasetCreateDialog: document.querySelector("#datasetCreateDialog"),
+  datasetCreateForm: document.querySelector("#datasetCreateForm"),
+  datasetCreateError: document.querySelector("#datasetCreateError"),
   datasetEditDialog: document.querySelector("#datasetEditDialog"),
   datasetEditForm: document.querySelector("#datasetEditForm"),
   datasetEditError: document.querySelector("#datasetEditError"),
@@ -99,6 +104,10 @@ function escapeHtml(value) {
   return node.innerHTML;
 }
 
+function icon(name) {
+  return `<svg class="icon" aria-hidden="true"><use href="/static/icons.svg#${name}"></use></svg>`;
+}
+
 function renderUsers() {
   const query = elements.userSearch.value.trim().toLocaleLowerCase("uz");
   const users = state.users.filter((user) => `${user.full_name} ${user.username} ${roleName(user.role)}`.toLocaleLowerCase("uz").includes(query));
@@ -112,8 +121,8 @@ function renderUsers() {
       <td>${escapeHtml(formatDate(user.created_at))}</td>
       <td>
         <div class="row-actions">
-          <button class="icon-button edit-button" type="button" data-edit="${user.id}" title="Tahrirlash" aria-label="${escapeHtml(user.full_name)}ni tahrirlash"></button>
-          <button class="icon-button delete-button" type="button" data-delete="${user.id}" title="O'chirish" aria-label="${escapeHtml(user.full_name)}ni o'chirish"></button>
+          <button class="icon-button edit-button" type="button" data-edit="${user.id}" title="Tahrirlash" aria-label="${escapeHtml(user.full_name)}ni tahrirlash">${icon("pencil")}</button>
+          <button class="icon-button delete-button" type="button" data-delete="${user.id}" title="O'chirish" aria-label="${escapeHtml(user.full_name)}ni o'chirish">${icon("trash")}</button>
         </div>
       </td>
     </tr>
@@ -146,9 +155,9 @@ function renderDatasets() {
       <td>${escapeHtml(formatDateTime(dataset.synced_at))}</td>
       <td>
         <div class="row-actions dataset-actions">
-          <button class="icon-button view-button" type="button" data-dataset-view="${dataset.superset_id}" title="Ko'rish" aria-label="${escapeHtml(dataset.table_name)} datasetini ko'rish"></button>
-          <button class="icon-button edit-button" type="button" data-dataset-edit="${dataset.superset_id}" title="Tahrirlash" aria-label="${escapeHtml(dataset.table_name)} datasetini tahrirlash"></button>
-          <button class="icon-button delete-button" type="button" data-dataset-delete="${dataset.superset_id}" title="O'chirish" aria-label="${escapeHtml(dataset.table_name)} datasetini o'chirish"></button>
+          <button class="icon-button view-button" type="button" data-dataset-view="${dataset.superset_id}" title="Ko'rish" aria-label="${escapeHtml(dataset.table_name)} datasetini ko'rish">${icon("eye")}</button>
+          <button class="icon-button edit-button" type="button" data-dataset-edit="${dataset.superset_id}" title="Tahrirlash" aria-label="${escapeHtml(dataset.table_name)} datasetini tahrirlash">${icon("pencil")}</button>
+          <button class="icon-button delete-button" type="button" data-dataset-delete="${dataset.superset_id}" title="O'chirish" aria-label="${escapeHtml(dataset.table_name)} datasetini o'chirish">${icon("trash")}</button>
         </div>
       </td>
     </tr>
@@ -165,6 +174,32 @@ async function loadDatasets() {
   state.datasets = payload.datasets;
   state.datasetDetails.clear();
   renderDatasets();
+}
+
+async function loadDatabases() {
+  const payload = await api("/api/superset/databases");
+  state.databases = payload.databases;
+  const select = document.querySelector("#datasetCreateDatabase");
+  select.innerHTML = state.databases.map((database) => (
+    `<option value="${database.id}">${escapeHtml(database.name)}${database.backend ? ` (${escapeHtml(database.backend)})` : ""}</option>`
+  )).join("");
+  if (!state.databases.length) {
+    select.innerHTML = '<option value="">Database topilmadi</option>';
+  }
+}
+
+async function openDatasetCreate() {
+  elements.datasetCreateForm.reset();
+  elements.datasetCreateError.textContent = "";
+  await loadDatabases();
+  const schemaCounts = state.datasets.reduce((counts, dataset) => {
+    if (dataset.schema_name) counts[dataset.schema_name] = (counts[dataset.schema_name] || 0) + 1;
+    return counts;
+  }, {});
+  const commonSchema = Object.entries(schemaCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+  document.querySelector("#datasetCreateSchema").value = commonSchema;
+  elements.datasetCreateDialog.showModal();
+  document.querySelector("#datasetCreateName").focus();
 }
 
 async function getDatasetDetails(id, force = false) {
@@ -289,6 +324,7 @@ elements.loginForm.addEventListener("submit", async (event) => {
 document.querySelector(".password-toggle").addEventListener("click", () => {
   const input = document.querySelector("#loginPassword");
   input.type = input.type === "password" ? "text" : "password";
+  document.querySelector(".password-toggle use").setAttribute("href", `/static/icons.svg#${input.type === "password" ? "eye" : "eye-off"}`);
 });
 
 document.querySelector("#logoutButton").addEventListener("click", async () => {
@@ -296,9 +332,21 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
 });
 
 elements.addUserButton.addEventListener("click", () => openUserDialog());
+elements.addDatasetButton.addEventListener("click", async () => {
+  elements.addDatasetButton.disabled = true;
+  try {
+    await openDatasetCreate();
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    elements.addDatasetButton.disabled = false;
+  }
+});
 document.querySelector("#closeDialog").addEventListener("click", () => elements.userDialog.close());
 document.querySelector("#cancelDialog").addEventListener("click", () => elements.userDialog.close());
 document.querySelector("#cancelDelete").addEventListener("click", () => elements.deleteDialog.close());
+document.querySelector("#closeDatasetCreate").addEventListener("click", () => elements.datasetCreateDialog.close());
+document.querySelector("#cancelDatasetCreate").addEventListener("click", () => elements.datasetCreateDialog.close());
 elements.userSearch.addEventListener("input", renderUsers);
 elements.datasetSearch.addEventListener("input", renderDatasets);
 elements.syncDatasetsButton.addEventListener("click", syncDatasets);
@@ -367,6 +415,33 @@ elements.deleteForm.addEventListener("submit", async (event) => {
   }
 });
 
+elements.datasetCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.datasetCreateError.textContent = "";
+  const submit = event.submitter;
+  submit.disabled = true;
+  try {
+    const result = await api("/api/datasets", {
+      method: "POST",
+      body: JSON.stringify({
+        database_id: Number(document.querySelector("#datasetCreateDatabase").value),
+        schema_name: document.querySelector("#datasetCreateSchema").value,
+        table_name: document.querySelector("#datasetCreateName").value,
+        sql: document.querySelector("#datasetCreateSql").value,
+        tags: document.querySelector("#datasetCreateTags").value.split(",").map((tag) => tag.trim()).filter(Boolean),
+        description: document.querySelector("#datasetCreateDescription").value,
+      }),
+    });
+    elements.datasetCreateDialog.close();
+    await loadDatasets();
+    showToast(`Dataset #${result.id} Supersetda yaratildi`);
+  } catch (error) {
+    elements.datasetCreateError.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
 elements.datasetEditForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   elements.datasetEditError.textContent = "";
@@ -420,6 +495,7 @@ document.querySelectorAll(".nav-item").forEach((button) => {
     document.querySelector("#datasetsPage").hidden = users;
     document.querySelector("#pageTitle").textContent = users ? "Foydalanuvchilar" : "SQL datasetlar";
     elements.addUserButton.hidden = !users;
+    elements.addDatasetButton.hidden = users;
     elements.syncDatasetsButton.hidden = users;
     elements.sidebar.classList.remove("open");
     if (!users) {
