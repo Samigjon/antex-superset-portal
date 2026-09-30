@@ -1,11 +1,12 @@
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import sqlite3
 from datetime import datetime, timezone
 from functools import wraps
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 import requests
 from flask import Flask, g, jsonify, render_template, request, session
@@ -68,10 +69,18 @@ def init_db():
             schema_name TEXT,
             database_id INTEGER,
             database_name TEXT,
+            tags_json TEXT NOT NULL DEFAULT '[]',
             synced_at TEXT NOT NULL
         );
         """
     )
+    dataset_columns = {
+        row["name"] for row in db.execute("PRAGMA table_info(superset_datasets)").fetchall()
+    }
+    if "tags_json" not in dataset_columns:
+        db.execute(
+            "ALTER TABLE superset_datasets ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'"
+        )
     username = os.environ.get("ADMIN_USERNAME", "admin").strip()
     password = os.environ.get("ADMIN_PASSWORD")
     existing = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
@@ -83,7 +92,7 @@ def init_db():
             "INSERT INTO users (username, full_name, password_hash, role, is_active, created_at, updated_at) VALUES (?, ?, ?, 'admin', 1, ?, ?)",
             (username, "Administrator", generate_password_hash(password), now, now),
         )
-        db.commit()
+    db.commit()
 
 
 def current_user():
@@ -129,15 +138,18 @@ def require_admin(handler):
 
 
 class SupersetConnectionError(RuntimeError):
-    pass
+    def __init__(self, message, status_code=502):
+        super().__init__(message)
+        self.status_code = status_code
 
 
-def fetch_superset_datasets():
+def superset_client(write=False):
     if not all((SUPERSET_URL, SUPERSET_USERNAME, SUPERSET_PASSWORD)):
         raise SupersetConnectionError("Superset ulanish sozlamalari kiritilmagan")
 
+    client = requests.Session()
     try:
-        login_response = requests.post(
+        login_response = client.post(
             urljoin(f"{SUPERSET_URL}/", "api/v1/security/login"),
             json={
                 "username": SUPERSET_USERNAME,
@@ -152,25 +164,72 @@ def fetch_superset_datasets():
     except (requests.RequestException, KeyError, ValueError) as error:
         raise SupersetConnectionError("Superset tizimiga ulanib bo'lmadi") from error
 
-    headers = {"Authorization": f"Bearer {access_token}"}
+    client.headers.update({"Authorization": f"Bearer {access_token}"})
+    if write:
+        try:
+            csrf_response = client.get(
+                urljoin(f"{SUPERSET_URL}/", "api/v1/security/csrf_token/"), timeout=20
+            )
+            csrf_response.raise_for_status()
+            client.headers.update(
+                {
+                    "X-CSRFToken": csrf_response.json()["result"],
+                    "Referer": f"{SUPERSET_URL}/",
+                }
+            )
+        except (requests.RequestException, KeyError, ValueError) as error:
+            raise SupersetConnectionError("Superset xavfsizlik tokenini olib bo'lmadi") from error
+    return client
+
+
+def superset_api(client, method, path, error_message, **kwargs):
+    try:
+        response = client.request(
+            method,
+            urljoin(f"{SUPERSET_URL}/", path.lstrip("/")),
+            timeout=30,
+            **kwargs,
+        )
+        if response.status_code == 404:
+            raise SupersetConnectionError("Dataset Supersetda topilmadi", 404)
+        response.raise_for_status()
+        if response.status_code == 204 or not response.content:
+            return {}
+        return response.json()
+    except SupersetConnectionError:
+        raise
+    except requests.HTTPError as error:
+        detail = ""
+        try:
+            payload = error.response.json()
+            detail = payload.get("message") or payload.get("error") or ""
+            if isinstance(detail, dict):
+                detail = "; ".join(str(value) for value in detail.values())
+        except (ValueError, AttributeError):
+            pass
+        message = f"{error_message}: {detail}" if detail else error_message
+        status = 400 if error.response is not None and error.response.status_code < 500 else 502
+        raise SupersetConnectionError(message, status) from error
+    except (requests.RequestException, ValueError) as error:
+        raise SupersetConnectionError(error_message) from error
+
+
+def fetch_superset_datasets(client=None):
+    client = client or superset_client()
     datasets = []
     page = 0
     page_size = 100
 
     while True:
         query = f"(page:{page},page_size:{page_size})"
-        try:
-            response = requests.get(
-                urljoin(f"{SUPERSET_URL}/", "api/v1/dataset/"),
-                params={"q": query},
-                headers=headers,
-                timeout=30,
-            )
-            response.raise_for_status()
-            payload = response.json()
-            batch = payload.get("result", [])
-        except (requests.RequestException, ValueError) as error:
-            raise SupersetConnectionError("Superset datasetlarini olib bo'lmadi") from error
+        payload = superset_api(
+            client,
+            "GET",
+            "api/v1/dataset/",
+            "Superset datasetlarini olib bo'lmadi",
+            params={"q": query},
+        )
+        batch = payload.get("result", [])
 
         datasets.extend(batch)
         if not batch or len(datasets) >= int(payload.get("count", len(datasets))):
@@ -180,8 +239,45 @@ def fetch_superset_datasets():
     return datasets
 
 
-def sync_superset_datasets():
-    datasets = fetch_superset_datasets()
+def fetch_superset_tags(client):
+    tags = []
+    page = 0
+    while True:
+        payload = superset_api(
+            client,
+            "GET",
+            "api/v1/tag/",
+            "Superset taglarini olib bo'lmadi",
+            params={"q": f"(page:{page},page_size:100)"},
+        )
+        batch = payload.get("result", [])
+        tags.extend(tag for tag in batch if tag.get("type") in (1, "custom", "TagType.custom"))
+        if not batch or (page + 1) * 100 >= int(payload.get("count", len(tags))):
+            break
+        page += 1
+    return tags
+
+
+def fetch_dataset_tag_map(client):
+    tag_map = {}
+    for tag in fetch_superset_tags(client):
+        payload = superset_api(
+            client,
+            "GET",
+            "api/v1/tag/get_objects/",
+            "Dataset taglarini olib bo'lmadi",
+            params={"tagIds": str(tag["id"])},
+        )
+        for item in payload.get("result", []):
+            if item.get("type") == "dataset":
+                tag_map.setdefault(int(item["id"]), []).append(tag["name"])
+    return {key: sorted(set(value), key=str.casefold) for key, value in tag_map.items()}
+
+
+def sync_superset_datasets(client=None):
+    client = client or superset_client()
+    datasets = fetch_superset_datasets(client)
+    tag_map = fetch_dataset_tag_map(client)
     synced_at = utc_now()
     db = get_db()
 
@@ -190,13 +286,14 @@ def sync_superset_datasets():
         db.execute(
             """
             INSERT INTO superset_datasets (
-                superset_id, table_name, schema_name, database_id, database_name, synced_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                superset_id, table_name, schema_name, database_id, database_name, tags_json, synced_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(superset_id) DO UPDATE SET
                 table_name = excluded.table_name,
                 schema_name = excluded.schema_name,
                 database_id = excluded.database_id,
                 database_name = excluded.database_name,
+                tags_json = excluded.tags_json,
                 synced_at = excluded.synced_at
             """,
             (
@@ -205,10 +302,20 @@ def sync_superset_datasets():
                 dataset.get("schema"),
                 database.get("id"),
                 database.get("database_name"),
+                json.dumps(tag_map.get(int(dataset["id"]), []), ensure_ascii=False),
                 synced_at,
             ),
         )
 
+    dataset_ids = [int(dataset["id"]) for dataset in datasets]
+    if dataset_ids:
+        placeholders = ",".join("?" for _ in dataset_ids)
+        db.execute(
+            f"DELETE FROM superset_datasets WHERE superset_id NOT IN ({placeholders})",
+            dataset_ids,
+        )
+    else:
+        db.execute("DELETE FROM superset_datasets")
     db.commit()
     return len(datasets), synced_at
 
@@ -291,12 +398,20 @@ def list_users():
 def list_datasets():
     datasets = get_db().execute(
         """
-        SELECT superset_id, table_name, schema_name, database_id, database_name, synced_at
+        SELECT superset_id, table_name, schema_name, database_id, database_name, tags_json, synced_at
         FROM superset_datasets
         ORDER BY table_name COLLATE NOCASE, superset_id
         """
     ).fetchall()
-    return jsonify({"datasets": [dict(dataset) for dataset in datasets]})
+    result = []
+    for dataset in datasets:
+        item = dict(dataset)
+        try:
+            item["tags"] = json.loads(item.pop("tags_json"))
+        except (TypeError, ValueError):
+            item["tags"] = []
+        result.append(item)
+    return jsonify({"datasets": result})
 
 
 @app.post("/api/datasets/sync")
@@ -308,6 +423,154 @@ def sync_datasets():
         app.logger.warning("Superset dataset sync failed: %s", error)
         return jsonify({"error": str(error)}), 502
     return jsonify({"ok": True, "count": count, "synced_at": synced_at})
+
+
+def dataset_details(client, dataset_id):
+    payload = superset_api(
+        client,
+        "GET",
+        f"api/v1/dataset/{dataset_id}",
+        "Dataset ma'lumotlarini olib bo'lmadi",
+    )
+    related = superset_api(
+        client,
+        "GET",
+        f"api/v1/dataset/{dataset_id}/related_objects",
+        "Dataset bog'lanishlarini olib bo'lmadi",
+    )
+    result = payload.get("result", {})
+    database = result.get("database") or {}
+    return {
+        "superset_id": int(result.get("id", dataset_id)),
+        "table_name": result.get("table_name") or result.get("name") or "",
+        "schema_name": result.get("schema"),
+        "database_id": database.get("id"),
+        "database_name": database.get("database_name"),
+        "description": result.get("description") or "",
+        "sql": result.get("sql"),
+        "is_sqllab_view": bool(result.get("is_sqllab_view")),
+        "tags": fetch_dataset_tag_map(client).get(dataset_id, []),
+        "charts_count": int((related.get("charts") or {}).get("count", 0)),
+        "dashboards_count": int((related.get("dashboards") or {}).get("count", 0)),
+        "superset_url": urljoin(f"{SUPERSET_URL}/", f"explore/?datasource_type=table&datasource_id={dataset_id}"),
+    }
+
+
+@app.get("/api/datasets/<int:dataset_id>")
+@require_admin
+def get_dataset(dataset_id):
+    try:
+        return jsonify({"dataset": dataset_details(superset_client(), dataset_id)})
+    except SupersetConnectionError as error:
+        app.logger.warning("Superset dataset read failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+
+
+def validate_dataset_payload(payload):
+    table_name = str(payload.get("table_name", "")).strip()
+    schema_name = str(payload.get("schema_name", "")).strip()
+    description = str(payload.get("description", "")).strip()
+    sql = payload.get("sql")
+    if len(table_name) < 1 or len(table_name) > 250:
+        return None, "Dataset nomi 1 dan 250 belgigacha bo'lishi kerak"
+    if len(schema_name) > 250:
+        return None, "Schema nomi 250 belgidan oshmasligi kerak"
+    if len(description) > 5000:
+        return None, "Tavsif 5000 belgidan oshmasligi kerak"
+    if sql is not None:
+        sql = str(sql).strip()
+        if not sql:
+            return None, "Virtual dataset SQL so'rovi bo'sh bo'lishi mumkin emas"
+    raw_tags = payload.get("tags", [])
+    if not isinstance(raw_tags, list):
+        return None, "Taglar ro'yxati noto'g'ri"
+    tags = []
+    seen = set()
+    for raw_tag in raw_tags:
+        tag = str(raw_tag).strip()
+        key = tag.casefold()
+        if not tag or key in seen:
+            continue
+        if len(tag) > 250:
+            return None, "Tag nomi 250 belgidan oshmasligi kerak"
+        seen.add(key)
+        tags.append(tag)
+    if len(tags) > 50:
+        return None, "Bitta datasetga 50 tadan ko'p tag biriktirib bo'lmaydi"
+    return {
+        "table_name": table_name,
+        "schema": schema_name or None,
+        "description": description or None,
+        "sql": sql,
+        "tags": tags,
+    }, None
+
+
+@app.put("/api/datasets/<int:dataset_id>")
+@require_admin
+def update_dataset(dataset_id):
+    data, error = validate_dataset_payload(request.get_json(silent=True) or {})
+    if error:
+        return jsonify({"error": error}), 400
+    try:
+        client = superset_client(write=True)
+        existing = dataset_details(client, dataset_id)
+        update_payload = {
+            "table_name": data["table_name"],
+            "schema": data["schema"],
+            "description": data["description"],
+        }
+        if existing["sql"] is not None:
+            update_payload["sql"] = data["sql"]
+        superset_api(
+            client,
+            "PUT",
+            f"api/v1/dataset/{dataset_id}",
+            "Datasetni Supersetda yangilab bo'lmadi",
+            json=update_payload,
+        )
+
+        current_tags = set(existing["tags"])
+        requested_tags = set(data["tags"])
+        if requested_tags - current_tags:
+            superset_api(
+                client,
+                "POST",
+                f"api/v1/tag/4/{dataset_id}/",
+                "Dataset taglarini qo'shib bo'lmadi",
+                json={"properties": {"tags": sorted(requested_tags - current_tags)}},
+            )
+        for tag in current_tags - requested_tags:
+            superset_api(
+                client,
+                "DELETE",
+                f"api/v1/tag/4/{dataset_id}/{quote(tag, safe='')}/",
+                "Dataset tagini olib tashlab bo'lmadi",
+            )
+        sync_superset_datasets(client)
+    except SupersetConnectionError as superset_error:
+        app.logger.warning("Superset dataset update failed: %s", superset_error)
+        return jsonify({"error": str(superset_error)}), superset_error.status_code
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/datasets/<int:dataset_id>")
+@require_admin
+def delete_dataset(dataset_id):
+    try:
+        client = superset_client(write=True)
+        superset_api(
+            client,
+            "DELETE",
+            f"api/v1/dataset/{dataset_id}",
+            "Datasetni Supersetdan o'chirib bo'lmadi",
+        )
+    except SupersetConnectionError as error:
+        app.logger.warning("Superset dataset delete failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    get_db().execute("DELETE FROM superset_datasets WHERE superset_id = ?", (dataset_id,))
+    get_db().commit()
+    return jsonify({"ok": True})
 
 
 def validate_user_payload(payload, editing=False):

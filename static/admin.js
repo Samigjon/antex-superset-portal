@@ -4,6 +4,8 @@ const state = {
   users: [],
   datasets: [],
   deleteTarget: null,
+  datasetDetails: new Map(),
+  datasetDeleteTarget: null,
 };
 
 const elements = {
@@ -27,6 +29,13 @@ const elements = {
   deleteDialog: document.querySelector("#deleteDialog"),
   deleteForm: document.querySelector("#deleteForm"),
   deleteError: document.querySelector("#deleteError"),
+  datasetViewDialog: document.querySelector("#datasetViewDialog"),
+  datasetEditDialog: document.querySelector("#datasetEditDialog"),
+  datasetEditForm: document.querySelector("#datasetEditForm"),
+  datasetEditError: document.querySelector("#datasetEditError"),
+  datasetDeleteDialog: document.querySelector("#datasetDeleteDialog"),
+  datasetDeleteForm: document.querySelector("#datasetDeleteForm"),
+  datasetDeleteError: document.querySelector("#datasetDeleteError"),
   toast: document.querySelector("#toast"),
   sidebar: document.querySelector(".sidebar"),
 };
@@ -120,7 +129,7 @@ async function loadUsers() {
 function renderDatasets() {
   const query = elements.datasetSearch.value.trim().toLocaleLowerCase("uz");
   const datasets = state.datasets.filter((dataset) => (
-    `${dataset.table_name} ${dataset.schema_name || ""} ${dataset.database_name || ""}`
+    `${dataset.table_name} ${dataset.schema_name || ""} ${dataset.database_name || ""} ${(dataset.tags || []).join(" ")}`
       .toLocaleLowerCase("uz")
       .includes(query)
   ));
@@ -132,16 +141,78 @@ function renderDatasets() {
       <td><div class="dataset-name"><strong>${escapeHtml(dataset.table_name)}</strong></div></td>
       <td>${escapeHtml(dataset.schema_name || "-")}</td>
       <td>${escapeHtml(dataset.database_name || "-")}</td>
+      <td>${renderTags(dataset.tags)}</td>
       <td><span class="dataset-id">#${dataset.superset_id}</span></td>
       <td>${escapeHtml(formatDateTime(dataset.synced_at))}</td>
+      <td>
+        <div class="row-actions dataset-actions">
+          <button class="icon-button view-button" type="button" data-dataset-view="${dataset.superset_id}" title="Ko'rish" aria-label="${escapeHtml(dataset.table_name)} datasetini ko'rish"></button>
+          <button class="icon-button edit-button" type="button" data-dataset-edit="${dataset.superset_id}" title="Tahrirlash" aria-label="${escapeHtml(dataset.table_name)} datasetini tahrirlash"></button>
+          <button class="icon-button delete-button" type="button" data-dataset-delete="${dataset.superset_id}" title="O'chirish" aria-label="${escapeHtml(dataset.table_name)} datasetini o'chirish"></button>
+        </div>
+      </td>
     </tr>
   `).join("");
+}
+
+function renderTags(tags = []) {
+  if (!tags.length) return '<span class="muted-value">-</span>';
+  return `<div class="tag-list">${tags.map((tag) => `<span class="tag-badge">${escapeHtml(tag)}</span>`).join("")}</div>`;
 }
 
 async function loadDatasets() {
   const payload = await api("/api/datasets");
   state.datasets = payload.datasets;
+  state.datasetDetails.clear();
   renderDatasets();
+}
+
+async function getDatasetDetails(id, force = false) {
+  if (!force && state.datasetDetails.has(id)) return state.datasetDetails.get(id);
+  const payload = await api(`/api/datasets/${id}`);
+  state.datasetDetails.set(id, payload.dataset);
+  return payload.dataset;
+}
+
+async function openDatasetView(id) {
+  const dataset = await getDatasetDetails(id);
+  document.querySelector("#datasetViewTitle").textContent = dataset.table_name;
+  document.querySelector("#datasetViewSchema").textContent = dataset.schema_name || "-";
+  document.querySelector("#datasetViewDatabase").textContent = dataset.database_name || "-";
+  document.querySelector("#datasetViewId").textContent = `#${dataset.superset_id}`;
+  document.querySelector("#datasetViewType").textContent = dataset.is_sqllab_view ? "Virtual dataset" : "Jadval";
+  document.querySelector("#datasetViewCharts").textContent = dataset.charts_count;
+  document.querySelector("#datasetViewDashboards").textContent = dataset.dashboards_count;
+  document.querySelector("#datasetViewTags").innerHTML = renderTags(dataset.tags);
+  document.querySelector("#datasetViewDescription").textContent = dataset.description || "-";
+  document.querySelector("#datasetViewSqlRow").hidden = dataset.sql === null;
+  document.querySelector("#datasetViewSql").textContent = dataset.sql || "";
+  document.querySelector("#openInSuperset").href = dataset.superset_url;
+  elements.datasetViewDialog.showModal();
+}
+
+async function openDatasetEdit(id) {
+  const dataset = await getDatasetDetails(id, true);
+  elements.datasetEditForm.reset();
+  elements.datasetEditError.textContent = "";
+  document.querySelector("#datasetEditId").value = dataset.superset_id;
+  document.querySelector("#datasetEditName").value = dataset.table_name;
+  document.querySelector("#datasetEditSchema").value = dataset.schema_name || "";
+  document.querySelector("#datasetEditTags").value = dataset.tags.join(", ");
+  document.querySelector("#datasetEditDescription").value = dataset.description || "";
+  document.querySelector("#datasetEditSqlField").hidden = dataset.sql === null;
+  document.querySelector("#datasetEditSql").value = dataset.sql || "";
+  elements.datasetEditDialog.showModal();
+  document.querySelector("#datasetEditName").focus();
+}
+
+async function openDatasetDelete(id) {
+  const dataset = await getDatasetDetails(id, true);
+  state.datasetDeleteTarget = dataset;
+  elements.datasetDeleteError.textContent = "";
+  document.querySelector("#deleteDatasetName").textContent = dataset.table_name;
+  document.querySelector("#deleteDatasetRelations").textContent = `${dataset.charts_count} ta chart va ${dataset.dashboards_count} ta dashboard bog'langan.`;
+  elements.datasetDeleteDialog.showModal();
 }
 
 async function syncDatasets() {
@@ -231,6 +302,26 @@ document.querySelector("#cancelDelete").addEventListener("click", () => elements
 elements.userSearch.addEventListener("input", renderUsers);
 elements.datasetSearch.addEventListener("input", renderDatasets);
 elements.syncDatasetsButton.addEventListener("click", syncDatasets);
+document.querySelector("#closeDatasetView").addEventListener("click", () => elements.datasetViewDialog.close());
+document.querySelector("#closeDatasetViewAction").addEventListener("click", () => elements.datasetViewDialog.close());
+document.querySelector("#closeDatasetEdit").addEventListener("click", () => elements.datasetEditDialog.close());
+document.querySelector("#cancelDatasetEdit").addEventListener("click", () => elements.datasetEditDialog.close());
+document.querySelector("#cancelDatasetDelete").addEventListener("click", () => elements.datasetDeleteDialog.close());
+
+elements.datasetsTable.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-dataset-view], [data-dataset-edit], [data-dataset-delete]");
+  if (!button) return;
+  button.disabled = true;
+  try {
+    if (button.dataset.datasetView) await openDatasetView(Number(button.dataset.datasetView));
+    if (button.dataset.datasetEdit) await openDatasetEdit(Number(button.dataset.datasetEdit));
+    if (button.dataset.datasetDelete) await openDatasetDelete(Number(button.dataset.datasetDelete));
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
 
 elements.usersTable.addEventListener("click", (event) => {
   const editId = event.target.closest("[data-edit]")?.dataset.edit;
@@ -273,6 +364,51 @@ elements.deleteForm.addEventListener("submit", async (event) => {
     showToast("Foydalanuvchi o'chirildi");
   } catch (error) {
     elements.deleteError.textContent = error.message;
+  }
+});
+
+elements.datasetEditForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.datasetEditError.textContent = "";
+  const id = Number(document.querySelector("#datasetEditId").value);
+  const sqlField = document.querySelector("#datasetEditSqlField");
+  const submit = event.submitter;
+  submit.disabled = true;
+  try {
+    await api(`/api/datasets/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        table_name: document.querySelector("#datasetEditName").value,
+        schema_name: document.querySelector("#datasetEditSchema").value,
+        tags: document.querySelector("#datasetEditTags").value.split(",").map((tag) => tag.trim()).filter(Boolean),
+        description: document.querySelector("#datasetEditDescription").value,
+        sql: sqlField.hidden ? null : document.querySelector("#datasetEditSql").value,
+      }),
+    });
+    elements.datasetEditDialog.close();
+    await loadDatasets();
+    showToast("Dataset Supersetda yangilandi");
+  } catch (error) {
+    elements.datasetEditError.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+elements.datasetDeleteForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.datasetDeleteError.textContent = "";
+  const submit = event.submitter;
+  submit.disabled = true;
+  try {
+    await api(`/api/datasets/${state.datasetDeleteTarget.superset_id}`, { method: "DELETE" });
+    elements.datasetDeleteDialog.close();
+    await loadDatasets();
+    showToast("Dataset Supersetdan o'chirildi");
+  } catch (error) {
+    elements.datasetDeleteError.textContent = error.message;
+  } finally {
+    submit.disabled = false;
   }
 });
 

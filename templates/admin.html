@@ -116,8 +116,10 @@
                 <th>Dataset nomi</th>
                 <th>Schema</th>
                 <th>Ma'lumotlar bazasi</th>
+                <th>Tag</th>
                 <th>Superset ID</th>
                 <th>Sinxronlangan</th>
+                <th><span class="sr-only">Amallar</span></th>
               </tr>
             </thead>
             <tbody id="datasetsTable"></tbody>
@@ -184,6 +186,89 @@
       <div class="modal-actions">
         <button id="cancelDelete" class="secondary-button" type="button">Bekor qilish</button>
         <button class="danger-button" type="submit">O'chirish</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="datasetViewDialog" class="modal dataset-modal">
+    <div class="dataset-dialog-body">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">DATASET</p>
+          <h2 id="datasetViewTitle"></h2>
+        </div>
+        <button id="closeDatasetView" class="icon-button close-icon" type="button" title="Yopish" aria-label="Yopish"></button>
+      </div>
+      <dl class="dataset-details">
+        <div><dt>Schema</dt><dd id="datasetViewSchema"></dd></div>
+        <div><dt>Ma'lumotlar bazasi</dt><dd id="datasetViewDatabase"></dd></div>
+        <div><dt>Superset ID</dt><dd id="datasetViewId"></dd></div>
+        <div><dt>Tur</dt><dd id="datasetViewType"></dd></div>
+        <div><dt>Chartlar</dt><dd id="datasetViewCharts"></dd></div>
+        <div><dt>Dashboardlar</dt><dd id="datasetViewDashboards"></dd></div>
+        <div class="full-width"><dt>Taglar</dt><dd id="datasetViewTags" class="tag-list"></dd></div>
+        <div class="full-width"><dt>Tavsif</dt><dd id="datasetViewDescription" class="preserve-text"></dd></div>
+        <div id="datasetViewSqlRow" class="full-width"><dt>SQL</dt><dd><pre id="datasetViewSql"></pre></dd></div>
+      </dl>
+      <div class="modal-actions">
+        <a id="openInSuperset" class="secondary-button" href="#" target="_blank" rel="noopener">Supersetda ochish</a>
+        <button id="closeDatasetViewAction" class="primary-button" type="button">Yopish</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="datasetEditDialog" class="modal dataset-modal">
+    <form id="datasetEditForm" method="dialog">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">SUPERSET DATASET</p>
+          <h2>Datasetni tahrirlash</h2>
+        </div>
+        <button id="closeDatasetEdit" class="icon-button close-icon" type="button" title="Yopish" aria-label="Yopish"></button>
+      </div>
+      <input id="datasetEditId" type="hidden">
+      <div class="form-grid">
+        <div class="field full-width">
+          <label for="datasetEditName">Dataset nomi</label>
+          <input id="datasetEditName" required maxlength="250">
+        </div>
+        <div class="field full-width">
+          <label for="datasetEditSchema">Schema</label>
+          <input id="datasetEditSchema" maxlength="250">
+        </div>
+        <div class="field full-width">
+          <label for="datasetEditTags">Taglar <span>(vergul bilan ajrating)</span></label>
+          <input id="datasetEditTags" maxlength="3000" placeholder="Masalan: Savdo, Hisobot">
+        </div>
+        <div class="field full-width">
+          <label for="datasetEditDescription">Tavsif</label>
+          <textarea id="datasetEditDescription" maxlength="5000" rows="4"></textarea>
+        </div>
+        <div id="datasetEditSqlField" class="field full-width">
+          <label for="datasetEditSql">SQL</label>
+          <textarea id="datasetEditSql" class="code-input" rows="10" spellcheck="false"></textarea>
+        </div>
+      </div>
+      <p class="form-note">Saqlanganda o'zgarishlar asosiy Superset datasetiga yoziladi.</p>
+      <p id="datasetEditError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelDatasetEdit" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="primary-button" type="submit">Saqlash</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="datasetDeleteDialog" class="modal confirm-modal">
+    <form id="datasetDeleteForm" method="dialog">
+      <div class="danger-mark">!</div>
+      <h2>Datasetni Supersetdan o'chirish</h2>
+      <p><strong id="deleteDatasetName"></strong> datasetini o'chirishni tasdiqlaysizmi?</p>
+      <p id="deleteDatasetRelations" class="delete-relations"></p>
+      <p class="danger-copy">Bu amal asosiy Supersetdagi datasetni ham o'chiradi va uni bekor qilib bo'lmaydi.</p>
+      <p id="datasetDeleteError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelDatasetDelete" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="danger-button" type="submit">Supersetdan o'chirish</button>
       </div>
     </form>
   </dialog>

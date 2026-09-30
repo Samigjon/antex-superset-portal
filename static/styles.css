@@ -32,7 +32,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   letter-spacing: 0;
 }
@@ -44,7 +45,8 @@ select {
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -159,6 +161,7 @@ select:focus-visible {
 
 .field input,
 .field select,
+.field textarea,
 .search-field input {
   width: 100%;
   height: 44px;
@@ -169,12 +172,21 @@ select:focus-visible {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   padding: 0 13px;
+}
+
+.field textarea {
+  min-height: 100px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  resize: vertical;
 }
 
 .field input:hover,
 .field select:hover,
+.field textarea:hover,
 .search-field:hover {
   border-color: #535a64;
 }
@@ -228,6 +240,10 @@ select:focus-visible {
 
 .secondary-button:hover {
   background: #22262b;
+}
+
+a.secondary-button {
+  text-decoration: none;
 }
 
 .danger-button {
@@ -461,7 +477,31 @@ select:focus-visible {
 }
 
 .datasets-table {
-  min-width: 980px;
+  min-width: 1280px;
+}
+
+.tag-list {
+  display: flex;
+  max-width: 300px;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tag-badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid #3a4049;
+  border-radius: 3px;
+  background: #22262b;
+  color: #d8dbe0;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.muted-value {
+  color: var(--muted);
 }
 
 .refresh-icon {
@@ -568,6 +608,7 @@ tbody tr:hover {
 }
 
 .icon-button {
+  position: relative;
   display: inline-grid;
   width: 36px;
   height: 36px;
@@ -590,6 +631,23 @@ tbody tr:hover {
   border: 2px solid currentColor;
   content: "";
   transform: rotate(-45deg) skew(-8deg, -8deg);
+}
+
+.view-button::before {
+  width: 17px;
+  height: 11px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  content: "";
+}
+
+.view-button::after {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
 }
 
 .delete-button::before {
@@ -753,6 +811,74 @@ tbody tr:hover {
 
 .modal form {
   padding: 28px;
+}
+
+.dataset-dialog-body {
+  padding: 28px;
+}
+
+.dataset-modal {
+  width: min(calc(100% - 32px), 720px);
+}
+
+.dataset-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 28px;
+  margin: 0;
+}
+
+.dataset-details > div {
+  min-width: 0;
+}
+
+.dataset-details dt {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dataset-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dataset-details pre {
+  max-height: 260px;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #0d0f12;
+  color: #d9dde2;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.preserve-text {
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.code-input {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important;
+  font-size: 12px !important;
+  line-height: 1.55;
+}
+
+.form-note,
+.delete-relations,
+.danger-copy {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.danger-copy {
+  color: #ff8b8f;
 }
 
 .modal-header {
@@ -982,6 +1108,10 @@ tbody tr:hover {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dataset-details {
     grid-template-columns: 1fr;
   }
 
