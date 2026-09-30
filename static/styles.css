@@ -975,7 +975,9 @@ tbody tr:hover {
   }
 
   .compact .plus-icon,
-  .compact .plus-icon::after {
+  .compact .plus-icon::after,
+  .compact .refresh-icon,
+  .compact .refresh-icon::after {
     color: white;
   }
 
