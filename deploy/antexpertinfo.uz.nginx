@@ -1,7 +1,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name antexpertinfo.uz;
+    server_name antexpertinfo.uz www.antexpertinfo.uz;
 
     return 301 https://$host$request_uri;
 }
@@ -9,7 +9,7 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name antexpertinfo.uz;
+    server_name antexpertinfo.uz www.antexpertinfo.uz;
 
     ssl_certificate /etc/letsencrypt/live/antexpertinfo.uz/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/antexpertinfo.uz/privkey.pem;
