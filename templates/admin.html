@@ -65,6 +65,10 @@
           <span class="plus-icon" aria-hidden="true"></span>
           Foydalanuvchi qo'shish
         </button>
+        <button id="syncDatasetsButton" class="primary-button compact" type="button" hidden>
+          <span class="refresh-icon" aria-hidden="true"></span>
+          Yangilash
+        </button>
       </header>
 
       <section id="usersPage" class="content-section">
@@ -93,10 +97,31 @@
       </section>
 
       <section id="datasetsPage" class="content-section" hidden>
-        <div class="empty-state">
+        <div class="table-tools dataset-tools">
+          <label class="search-field">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input id="datasetSearch" type="search" placeholder="Datasetni qidirish" aria-label="Datasetni qidirish">
+          </label>
+          <span id="datasetCount" class="count-label"></span>
+        </div>
+        <div id="datasetsEmpty" class="empty-state" hidden>
           <span class="empty-database database-icon" aria-hidden="true"></span>
-          <h2>SQL datasetlar</h2>
-          <p>Superset ulanishi keyingi bosqichda shu yerga qo'shiladi.</p>
+          <h2>Datasetlar topilmadi</h2>
+          <p>Superset bilan sinxronlash uchun yuqoridagi yangilash tugmasini bosing.</p>
+        </div>
+        <div id="datasetsTableWrap" class="table-wrap">
+          <table class="datasets-table">
+            <thead>
+              <tr>
+                <th>Dataset nomi</th>
+                <th>Schema</th>
+                <th>Ma'lumotlar bazasi</th>
+                <th>Superset ID</th>
+                <th>Sinxronlangan</th>
+              </tr>
+            </thead>
+            <tbody id="datasetsTable"></tbody>
+          </table>
         </div>
       </section>
     </main>

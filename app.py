@@ -5,7 +5,9 @@ import secrets
 import sqlite3
 from datetime import datetime, timezone
 from functools import wraps
+from urllib.parse import urljoin
 
+import requests
 from flask import Flask, g, jsonify, render_template, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -20,6 +22,9 @@ app.config.update(
 )
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "portal.sqlite3")
+SUPERSET_URL = os.environ.get("SUPERSET_URL", "").rstrip("/")
+SUPERSET_USERNAME = os.environ.get("SUPERSET_USERNAME", "")
+SUPERSET_PASSWORD = os.environ.get("SUPERSET_PASSWORD", "")
 
 
 def utc_now():
@@ -55,6 +60,15 @@ def init_db():
             is_active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS superset_datasets (
+            superset_id INTEGER PRIMARY KEY,
+            table_name TEXT NOT NULL,
+            schema_name TEXT,
+            database_id INTEGER,
+            database_name TEXT,
+            synced_at TEXT NOT NULL
         );
         """
     )
@@ -112,6 +126,91 @@ def require_admin(handler):
         return handler(*args, **kwargs)
 
     return wrapped
+
+
+class SupersetConnectionError(RuntimeError):
+    pass
+
+
+def fetch_superset_datasets():
+    if not all((SUPERSET_URL, SUPERSET_USERNAME, SUPERSET_PASSWORD)):
+        raise SupersetConnectionError("Superset ulanish sozlamalari kiritilmagan")
+
+    try:
+        login_response = requests.post(
+            urljoin(f"{SUPERSET_URL}/", "api/v1/security/login"),
+            json={
+                "username": SUPERSET_USERNAME,
+                "password": SUPERSET_PASSWORD,
+                "provider": "db",
+                "refresh": True,
+            },
+            timeout=20,
+        )
+        login_response.raise_for_status()
+        access_token = login_response.json()["access_token"]
+    except (requests.RequestException, KeyError, ValueError) as error:
+        raise SupersetConnectionError("Superset tizimiga ulanib bo'lmadi") from error
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    datasets = []
+    page = 0
+    page_size = 100
+
+    while True:
+        query = f"(page:{page},page_size:{page_size})"
+        try:
+            response = requests.get(
+                urljoin(f"{SUPERSET_URL}/", "api/v1/dataset/"),
+                params={"q": query},
+                headers=headers,
+                timeout=30,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            batch = payload.get("result", [])
+        except (requests.RequestException, ValueError) as error:
+            raise SupersetConnectionError("Superset datasetlarini olib bo'lmadi") from error
+
+        datasets.extend(batch)
+        if not batch or len(datasets) >= int(payload.get("count", len(datasets))):
+            break
+        page += 1
+
+    return datasets
+
+
+def sync_superset_datasets():
+    datasets = fetch_superset_datasets()
+    synced_at = utc_now()
+    db = get_db()
+
+    for dataset in datasets:
+        database = dataset.get("database") or {}
+        db.execute(
+            """
+            INSERT INTO superset_datasets (
+                superset_id, table_name, schema_name, database_id, database_name, synced_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(superset_id) DO UPDATE SET
+                table_name = excluded.table_name,
+                schema_name = excluded.schema_name,
+                database_id = excluded.database_id,
+                database_name = excluded.database_name,
+                synced_at = excluded.synced_at
+            """,
+            (
+                dataset["id"],
+                dataset.get("table_name", ""),
+                dataset.get("schema"),
+                database.get("id"),
+                database.get("database_name"),
+                synced_at,
+            ),
+        )
+
+    db.commit()
+    return len(datasets), synced_at
 
 
 @app.before_request
@@ -185,6 +284,30 @@ def list_users():
         "SELECT id, username, full_name, role, is_active, created_at, updated_at FROM users ORDER BY id"
     ).fetchall()
     return jsonify({"users": [dict(user) for user in users]})
+
+
+@app.get("/api/datasets")
+@require_admin
+def list_datasets():
+    datasets = get_db().execute(
+        """
+        SELECT superset_id, table_name, schema_name, database_id, database_name, synced_at
+        FROM superset_datasets
+        ORDER BY table_name COLLATE NOCASE, superset_id
+        """
+    ).fetchall()
+    return jsonify({"datasets": [dict(dataset) for dataset in datasets]})
+
+
+@app.post("/api/datasets/sync")
+@require_admin
+def sync_datasets():
+    try:
+        count, synced_at = sync_superset_datasets()
+    except SupersetConnectionError as error:
+        app.logger.warning("Superset dataset sync failed: %s", error)
+        return jsonify({"error": str(error)}), 502
+    return jsonify({"ok": True, "count": count, "synced_at": synced_at})
 
 
 def validate_user_payload(payload, editing=False):

@@ -8,7 +8,8 @@ Antex uchun Superset boshqaruv portalining boshlang'ich versiyasi.
 - Sessiya asosidagi admin autentifikatsiyasi
 - Foydalanuvchilarni yaratish, tahrirlash, faollashtirish va o'chirish
 - Admin, muharrir va kuzatuvchi rollari
-- Kelajakdagi Superset integratsiyasi uchun SQL datasetlar bo'limi
+- Superset REST API orqali datasetlarni nomini o'zgartirmasdan sinxronlash
+- Dataset qidiruvi, schema va manba bazasi ma'lumotlari
 
 ## Ishga tushirish
 

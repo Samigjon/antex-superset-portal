@@ -2,6 +2,7 @@ const state = {
   csrfToken: "",
   currentUser: null,
   users: [],
+  datasets: [],
   deleteTarget: null,
 };
 
@@ -13,7 +14,13 @@ const elements = {
   usersTable: document.querySelector("#usersTable"),
   userCount: document.querySelector("#userCount"),
   userSearch: document.querySelector("#userSearch"),
+  datasetsTable: document.querySelector("#datasetsTable"),
+  datasetsTableWrap: document.querySelector("#datasetsTableWrap"),
+  datasetsEmpty: document.querySelector("#datasetsEmpty"),
+  datasetCount: document.querySelector("#datasetCount"),
+  datasetSearch: document.querySelector("#datasetSearch"),
   addUserButton: document.querySelector("#addUserButton"),
+  syncDatasetsButton: document.querySelector("#syncDatasetsButton"),
   userDialog: document.querySelector("#userDialog"),
   userForm: document.querySelector("#userForm"),
   userFormError: document.querySelector("#userFormError"),
@@ -67,6 +74,16 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("uz-UZ", { year: "numeric", month: "short", day: "2-digit" }).format(new Date(value));
 }
 
+function formatDateTime(value) {
+  return new Intl.DateTimeFormat("uz-UZ", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function escapeHtml(value) {
   const node = document.createElement("span");
   node.textContent = String(value ?? "");
@@ -98,6 +115,48 @@ async function loadUsers() {
   const payload = await api("/api/users");
   state.users = payload.users;
   renderUsers();
+}
+
+function renderDatasets() {
+  const query = elements.datasetSearch.value.trim().toLocaleLowerCase("uz");
+  const datasets = state.datasets.filter((dataset) => (
+    `${dataset.table_name} ${dataset.schema_name || ""} ${dataset.database_name || ""}`
+      .toLocaleLowerCase("uz")
+      .includes(query)
+  ));
+  elements.datasetCount.textContent = `${datasets.length} ta dataset`;
+  elements.datasetsEmpty.hidden = state.datasets.length > 0;
+  elements.datasetsTableWrap.hidden = state.datasets.length === 0;
+  elements.datasetsTable.innerHTML = datasets.map((dataset) => `
+    <tr>
+      <td><div class="dataset-name"><span class="database-icon" aria-hidden="true"></span><strong>${escapeHtml(dataset.table_name)}</strong></div></td>
+      <td>${escapeHtml(dataset.schema_name || "-")}</td>
+      <td>${escapeHtml(dataset.database_name || "-")}</td>
+      <td><span class="dataset-id">#${dataset.superset_id}</span></td>
+      <td>${escapeHtml(formatDateTime(dataset.synced_at))}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadDatasets() {
+  const payload = await api("/api/datasets");
+  state.datasets = payload.datasets;
+  renderDatasets();
+}
+
+async function syncDatasets() {
+  elements.syncDatasetsButton.disabled = true;
+  elements.syncDatasetsButton.classList.add("loading");
+  try {
+    const result = await api("/api/datasets/sync", { method: "POST" });
+    await loadDatasets();
+    showToast(`${result.count} ta dataset yangilandi`);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    elements.syncDatasetsButton.disabled = false;
+    elements.syncDatasetsButton.classList.remove("loading");
+  }
 }
 
 function openUserDialog(user = null) {
@@ -170,6 +229,8 @@ document.querySelector("#closeDialog").addEventListener("click", () => elements.
 document.querySelector("#cancelDialog").addEventListener("click", () => elements.userDialog.close());
 document.querySelector("#cancelDelete").addEventListener("click", () => elements.deleteDialog.close());
 elements.userSearch.addEventListener("input", renderUsers);
+elements.datasetSearch.addEventListener("input", renderDatasets);
+elements.syncDatasetsButton.addEventListener("click", syncDatasets);
 
 elements.usersTable.addEventListener("click", (event) => {
   const editId = event.target.closest("[data-edit]")?.dataset.edit;
@@ -216,14 +277,22 @@ elements.deleteForm.addEventListener("submit", async (event) => {
 });
 
 document.querySelectorAll(".nav-item").forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
     const users = button.dataset.page === "users";
     document.querySelector("#usersPage").hidden = !users;
     document.querySelector("#datasetsPage").hidden = users;
     document.querySelector("#pageTitle").textContent = users ? "Foydalanuvchilar" : "SQL datasetlar";
     elements.addUserButton.hidden = !users;
+    elements.syncDatasetsButton.hidden = users;
     elements.sidebar.classList.remove("open");
+    if (!users) {
+      try {
+        await loadDatasets();
+      } catch (error) {
+        showToast(error.message);
+      }
+    }
   });
 });
 

@@ -443,6 +443,57 @@ select:focus-visible {
   font-size: 12px;
 }
 
+.dataset-name {
+  display: flex;
+  min-width: 280px;
+  align-items: center;
+  gap: 12px;
+}
+
+.dataset-name .database-icon {
+  color: #7e858f;
+}
+
+.dataset-name strong {
+  font-weight: 650;
+}
+
+.dataset-id {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+
+.datasets-table {
+  min-width: 980px;
+}
+
+.refresh-icon {
+  width: 15px;
+  height: 15px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+}
+
+.refresh-icon::after {
+  display: block;
+  width: 5px;
+  height: 5px;
+  margin: -2px 0 0 8px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  content: "";
+}
+
+.loading .refresh-icon {
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
