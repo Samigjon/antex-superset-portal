@@ -304,7 +304,7 @@ a.secondary-button {
   width: 116px;
 }
 
-.sidebar-collapse-button {
+.sidebar .sidebar-collapse-button {
   position: absolute;
   top: 25px;
   right: 12px;
