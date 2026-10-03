@@ -150,35 +150,60 @@
       </section>
 
       <section id="metabasePage" class="content-section" hidden>
-        <div class="table-tools metabase-tools">
+        <div class="metabase-toolbar">
           <label class="search-field">
             <svg class="icon search-icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#search"></use></svg>
-            <input id="metabaseSearch" type="search" placeholder="Queryni qidirish" aria-label="Metabase queryni qidirish">
+            <input id="metabaseSearch" type="search" placeholder="Query yoki papkani qidirish" aria-label="Metabase query yoki papkani qidirish">
           </label>
-          <label class="filter-field">
-            <span class="sr-only">Collection</span>
-            <select id="metabaseCollectionFilter"><option value="all">Barcha collectionlar</option></select>
-          </label>
-          <span id="metabaseCount" class="count-label"></span>
+          <div class="metabase-create-actions">
+            <button id="addMetabaseFolderButton" class="secondary-button compact" type="button">
+              <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#folder-plus"></use></svg>
+              Yangi papka
+            </button>
+            <button id="addMetabaseQueryButton" class="primary-button compact" type="button">
+              <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#file-plus"></use></svg>
+              Yangi SQL query
+            </button>
+          </div>
         </div>
-        <div id="metabaseEmpty" class="empty-state" hidden>
-          <svg class="empty-database" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#bar-chart"></use></svg>
-          <h2>Metabase querylar topilmadi</h2>
-        </div>
-        <div id="metabaseTableWrap" class="table-wrap">
-          <table class="metabase-table">
-            <thead>
-              <tr>
-                <th>Query nomi</th>
-                <th>Collection</th>
-                <th>Tur</th>
-                <th>Ma'lumotlar bazasi</th>
-                <th>Yangilangan</th>
-                <th><span class="sr-only">Amallar</span></th>
-              </tr>
-            </thead>
-            <tbody id="metabaseTable"></tbody>
-          </table>
+        <div class="metabase-explorer">
+          <aside class="collection-pane" aria-label="Metabase papkalari">
+            <div class="collection-pane-heading">
+              <span>Papkalar</span>
+              <span id="metabaseCollectionCount"></span>
+            </div>
+            <div id="metabaseTree" class="collection-tree"></div>
+          </aside>
+          <div class="collection-browser">
+            <header class="collection-browser-header">
+              <nav id="metabaseBreadcrumb" class="breadcrumb" aria-label="Joriy papka"></nav>
+              <span id="metabaseCount" class="count-label"></span>
+            </header>
+            <div id="metabaseFoldersSection" class="folder-section">
+              <h2>Ichki papkalar</h2>
+              <div id="metabaseFolders" class="collection-folder-grid"></div>
+            </div>
+            <div id="metabaseEmpty" class="empty-state compact-empty" hidden>
+              <svg class="empty-database" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#bar-chart"></use></svg>
+              <h2>Bu papka bo'sh</h2>
+              <p>Yangi papka yoki SQL query yarating.</p>
+            </div>
+            <div id="metabaseTableWrap" class="table-wrap">
+              <table class="metabase-table">
+                <thead>
+                  <tr>
+                    <th>Query nomi</th>
+                    <th>Collection</th>
+                    <th>Tur</th>
+                    <th>Ma'lumotlar bazasi</th>
+                    <th>Yangilangan</th>
+                    <th><span class="sr-only">Amallar</span></th>
+                  </tr>
+                </thead>
+                <tbody id="metabaseTable"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -423,6 +448,46 @@
         <button id="closeMetabaseViewAction" class="primary-button" type="button">Yopish</button>
       </div>
     </div>
+  </dialog>
+
+  <dialog id="metabaseFolderCreateDialog" class="modal action-modal">
+    <form id="metabaseFolderCreateForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">METABASE PAPKA</p><h2>Yangi papka</h2></div>
+        <button id="closeMetabaseFolderCreate" class="icon-button" type="button" title="Yopish" aria-label="Yopish"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg></button>
+      </div>
+      <div class="field"><label for="metabaseFolderParent">Joylashuvi</label><select id="metabaseFolderParent"></select></div>
+      <div class="field"><label for="metabaseFolderName">Papka nomi</label><input id="metabaseFolderName" required maxlength="100"></div>
+      <div class="field"><label for="metabaseFolderDescription">Tavsif</label><textarea id="metabaseFolderDescription" maxlength="1000" rows="3"></textarea></div>
+      <p class="form-note">Papka asosiy Metabaseda ham yaratiladi.</p>
+      <p id="metabaseFolderCreateError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelMetabaseFolderCreate" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="primary-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#folder-plus"></use></svg>Papka yaratish</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="metabaseQueryCreateDialog" class="modal dataset-modal">
+    <form id="metabaseQueryCreateForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">METABASE SQL</p><h2>Yangi SQL query</h2></div>
+        <button id="closeMetabaseQueryCreate" class="icon-button" type="button" title="Yopish" aria-label="Yopish"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg></button>
+      </div>
+      <div class="form-grid">
+        <div class="field full-width"><label for="metabaseQueryName">Query nomi</label><input id="metabaseQueryName" required maxlength="250"></div>
+        <div class="field"><label for="metabaseQueryDatabase">Ma'lumotlar bazasi</label><select id="metabaseQueryDatabase" required></select></div>
+        <div class="field"><label for="metabaseQueryCollection">Papka</label><select id="metabaseQueryCollection"></select></div>
+        <div class="field full-width"><label for="metabaseQuerySql">SQL</label><textarea id="metabaseQuerySql" class="code-input" required rows="14" spellcheck="false" placeholder="SELECT ..."></textarea></div>
+        <div class="field full-width"><label for="metabaseQueryDescription">Tavsif</label><textarea id="metabaseQueryDescription" maxlength="5000" rows="3"></textarea></div>
+      </div>
+      <p class="form-note">Saqlanganda query asosiy Metabaseda ham yaratiladi.</p>
+      <p id="metabaseQueryCreateError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelMetabaseQueryCreate" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="primary-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#save"></use></svg>Query yaratish</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="metabaseEditDialog" class="modal dataset-modal">

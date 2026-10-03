@@ -12,6 +12,7 @@ Antex uchun Superset boshqaruv portalining boshlang'ich versiyasi.
 - Superset datasetlarini portal ichidagi papkalar va taglar bilan tartiblash
 - Metabase querylarini collectionlar bo'yicha ko'rish va qidirish
 - Metabase querylarini tahrirlash, nusxalash, ko'chirish va Trash bo'limiga o'tkazish
+- Metabase collection daraxtida ishlash, yangi papka va SQL query yaratish
 
 ## Ishga tushirish
 

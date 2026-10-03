@@ -213,21 +213,30 @@ def metabase_collections(client):
         params={"exclude-archived": "true"},
     )
     collections = [
-        {"id": None, "name": "Our analytics", "path": "Our analytics", "can_write": True}
+        {
+            "id": None,
+            "parent_id": None,
+            "name": "Our analytics",
+            "path": "Our analytics",
+            "depth": 0,
+            "can_write": True,
+        }
     ]
 
-    def walk(items, parents=()):
+    def walk(items, parents=(), parent_id=None):
         for item in items:
             names = (*parents, item.get("name") or "Nomsiz collection")
             collections.append(
                 {
                     "id": int(item["id"]),
+                    "parent_id": parent_id,
                     "name": names[-1],
                     "path": " / ".join(names),
+                    "depth": len(parents) + 1,
                     "can_write": bool(item.get("can_write", False)),
                 }
             )
-            walk(item.get("children") or [], names)
+            walk(item.get("children") or [], names, int(item["id"]))
 
     walk(tree)
     return collections
@@ -875,7 +884,99 @@ def list_metabase_queries():
         if not card.get("archived")
     ]
     queries.sort(key=lambda item: (item["collection_name"].casefold(), item["name"].casefold()))
-    return jsonify({"queries": queries, "collections": collections})
+    return jsonify(
+        {
+            "queries": queries,
+            "collections": collections,
+            "databases": [
+                {
+                    "id": int(item["id"]),
+                    "name": item.get("name") or item.get("details", {}).get("dbname") or "-",
+                    "engine": item.get("engine") or "",
+                }
+                for item in databases.get("data", databases)
+                if isinstance(item, dict) and item.get("id")
+            ],
+        }
+    )
+
+
+@app.post("/api/metabase/collections")
+@require_admin
+def create_metabase_collection():
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name", "")).strip()
+    description = str(payload.get("description", "")).strip()
+    if not 1 <= len(name) <= 100:
+        return jsonify({"error": "Papka nomi 1 dan 100 belgigacha bo'lishi kerak"}), 400
+    if len(description) > 1000:
+        return jsonify({"error": "Tavsif 1000 belgidan oshmasligi kerak"}), 400
+    try:
+        parent_id = parse_collection_id(payload.get("parent_id"))
+        client = metabase_client()
+        created = metabase_api(
+            client,
+            "POST",
+            "api/collection",
+            "Metabaseda papka yaratib bo'lmadi",
+            json={
+                "name": name,
+                "description": description or None,
+                "parent_id": parent_id,
+            },
+        )
+    except MetabaseConnectionError as error:
+        app.logger.warning("Metabase collection create failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    return jsonify({"ok": True, "id": int(created["id"])}), 201
+
+
+@app.post("/api/metabase/queries")
+@require_admin
+def create_metabase_query():
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name", "")).strip()
+    description = str(payload.get("description", "")).strip()
+    sql = str(payload.get("sql", "")).strip()
+    if not 1 <= len(name) <= 250:
+        return jsonify({"error": "Query nomi 1 dan 250 belgigacha bo'lishi kerak"}), 400
+    if len(description) > 5000:
+        return jsonify({"error": "Tavsif 5000 belgidan oshmasligi kerak"}), 400
+    if not sql:
+        return jsonify({"error": "SQL so'rovini kiriting"}), 400
+    try:
+        database_id = int(payload.get("database_id"))
+        if database_id < 1:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"error": "Ma'lumotlar bazasini tanlang"}), 400
+    try:
+        collection_id = parse_collection_id(payload.get("collection_id"))
+        client = metabase_client()
+        created = metabase_api(
+            client,
+            "POST",
+            "api/card",
+            "Metabaseda SQL query yaratib bo'lmadi",
+            json={
+                "name": name,
+                "description": description or None,
+                "collection_id": collection_id,
+                "display": "table",
+                "visualization_settings": {},
+                "dataset_query": {
+                    "lib/type": "mbql/query",
+                    "database": database_id,
+                    "stages": [
+                        {"lib/type": "mbql.stage/native", "native": sql}
+                    ],
+                },
+            },
+        )
+    except MetabaseConnectionError as error:
+        app.logger.warning("Metabase query create failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    return jsonify({"ok": True, "id": int(created["id"])}), 201
 
 
 @app.get("/api/metabase/queries/<int:card_id>")

@@ -11,6 +11,9 @@ const state = {
   datasetMoveTarget: null,
   metabaseQueries: [],
   metabaseCollections: [],
+  metabaseDatabases: [],
+  selectedMetabaseCollection: null,
+  expandedMetabaseCollections: new Set(["root"]),
   metabaseDetails: new Map(),
   metabaseDeleteTarget: null,
   metabaseCollectionAction: null,
@@ -39,7 +42,19 @@ const elements = {
   metabaseEmpty: document.querySelector("#metabaseEmpty"),
   metabaseCount: document.querySelector("#metabaseCount"),
   metabaseSearch: document.querySelector("#metabaseSearch"),
-  metabaseCollectionFilter: document.querySelector("#metabaseCollectionFilter"),
+  metabaseTree: document.querySelector("#metabaseTree"),
+  metabaseFolders: document.querySelector("#metabaseFolders"),
+  metabaseFoldersSection: document.querySelector("#metabaseFoldersSection"),
+  metabaseBreadcrumb: document.querySelector("#metabaseBreadcrumb"),
+  metabaseCollectionCount: document.querySelector("#metabaseCollectionCount"),
+  addMetabaseFolderButton: document.querySelector("#addMetabaseFolderButton"),
+  addMetabaseQueryButton: document.querySelector("#addMetabaseQueryButton"),
+  metabaseFolderCreateDialog: document.querySelector("#metabaseFolderCreateDialog"),
+  metabaseFolderCreateForm: document.querySelector("#metabaseFolderCreateForm"),
+  metabaseFolderCreateError: document.querySelector("#metabaseFolderCreateError"),
+  metabaseQueryCreateDialog: document.querySelector("#metabaseQueryCreateDialog"),
+  metabaseQueryCreateForm: document.querySelector("#metabaseQueryCreateForm"),
+  metabaseQueryCreateError: document.querySelector("#metabaseQueryCreateError"),
   metabaseViewDialog: document.querySelector("#metabaseViewDialog"),
   metabaseEditDialog: document.querySelector("#metabaseEditDialog"),
   metabaseEditForm: document.querySelector("#metabaseEditForm"),
@@ -234,20 +249,87 @@ function queryTypeName(query) {
   return "Konstruktor";
 }
 
+function metabaseCollectionKey(id) {
+  return id === null ? "root" : String(id);
+}
+
+function getMetabaseCollection(id) {
+  return state.metabaseCollections.find((collection) => collection.id === id);
+}
+
+function directMetabaseChildren(parentId) {
+  return state.metabaseCollections.filter((collection) => collection.id !== null && collection.parent_id === parentId);
+}
+
+function renderMetabaseTree() {
+  const renderNode = (collection) => {
+    const key = metabaseCollectionKey(collection.id);
+    const children = directMetabaseChildren(collection.id);
+    const expanded = state.expandedMetabaseCollections.has(key);
+    const selected = state.selectedMetabaseCollection === collection.id;
+    return `
+      <div class="tree-node" style="--tree-depth: ${collection.depth || 0}">
+        ${children.length
+          ? `<button class="tree-toggle${expanded ? " expanded" : ""}" type="button" data-tree-toggle="${key}" title="${expanded ? "Yopish" : "Ochish"}" aria-label="${escapeHtml(collection.name)} papkasini ${expanded ? "yopish" : "ochish"}">${icon("chevron-right")}</button>`
+          : '<span class="tree-toggle-placeholder"></span>'}
+        <button class="tree-label${selected ? " active" : ""}" type="button" data-collection-select="${key}">
+          ${icon("folder")}<span>${escapeHtml(collection.name)}</span>
+        </button>
+      </div>
+      ${expanded ? children.map(renderNode).join("") : ""}
+    `;
+  };
+  const root = getMetabaseCollection(null);
+  elements.metabaseTree.innerHTML = root ? renderNode(root) : "";
+  elements.metabaseCollectionCount.textContent = String(Math.max(0, state.metabaseCollections.length - 1));
+}
+
+function renderMetabaseBreadcrumb() {
+  const chain = [];
+  let current = getMetabaseCollection(state.selectedMetabaseCollection);
+  while (current) {
+    chain.unshift(current);
+    if (current.id === null) break;
+    current = getMetabaseCollection(current.parent_id);
+  }
+  if (!chain.length || chain[0].id !== null) chain.unshift(getMetabaseCollection(null));
+  elements.metabaseBreadcrumb.innerHTML = chain.filter(Boolean).map((collection, index) => `
+    ${index ? `<span class="breadcrumb-separator">${icon("chevron-right")}</span>` : ""}
+    <button type="button" data-collection-select="${metabaseCollectionKey(collection.id)}"${index === chain.length - 1 ? ' aria-current="page"' : ""}>${escapeHtml(collection.name)}</button>
+  `).join("");
+}
+
 function renderMetabaseQueries() {
   const search = elements.metabaseSearch.value.trim().toLocaleLowerCase("uz");
-  const collection = elements.metabaseCollectionFilter.value;
+  const searching = Boolean(search);
   const queries = state.metabaseQueries.filter((query) => {
-    const matchesCollection = collection === "all" || String(query.collection_id ?? "") === collection;
+    const matchesCollection = searching || query.collection_id === state.selectedMetabaseCollection;
     const haystack = `${query.name} ${query.collection_name} ${query.database_name} ${query.creator_name}`.toLocaleLowerCase("uz");
     return matchesCollection && haystack.includes(search);
   });
-  elements.metabaseCount.textContent = `${queries.length} ta query`;
-  elements.metabaseEmpty.hidden = queries.length > 0;
+  const folders = state.metabaseCollections.filter((collection) => {
+    if (collection.id === null) return false;
+    if (searching) return `${collection.name} ${collection.path}`.toLocaleLowerCase("uz").includes(search);
+    return collection.parent_id === state.selectedMetabaseCollection;
+  });
+  elements.metabaseCount.textContent = `${folders.length} ta papka, ${queries.length} ta query`;
+  elements.metabaseEmpty.hidden = folders.length > 0 || queries.length > 0;
   elements.metabaseTableWrap.hidden = queries.length === 0;
+  elements.metabaseFoldersSection.hidden = folders.length === 0;
+  elements.metabaseFolders.innerHTML = folders.map((folder) => {
+    const childCount = directMetabaseChildren(folder.id).length;
+    const queryCount = state.metabaseQueries.filter((query) => query.collection_id === folder.id).length;
+    return `
+      <button class="collection-folder" type="button" data-collection-select="${folder.id}">
+        <span class="collection-folder-icon">${icon("folder")}</span>
+        <span class="collection-folder-copy"><strong>${escapeHtml(folder.name)}</strong><small>${childCount} papka · ${queryCount} query</small></span>
+        ${icon("chevron-right")}
+      </button>
+    `;
+  }).join("");
   elements.metabaseTable.innerHTML = queries.map((query) => `
     <tr>
-      <td><div class="query-name"><strong>${escapeHtml(query.name)}</strong><span>#${query.id}</span></div></td>
+      <td><div class="query-name"><div class="query-name-main">${icon("file-code")}<strong>${escapeHtml(query.name)}</strong></div><span>#${query.id}</span></div></td>
       <td><span class="folder-badge">${icon("folder")}${escapeHtml(query.collection_name)}</span></td>
       <td><span class="query-type-badge">${escapeHtml(queryTypeName(query))}</span></td>
       <td>${escapeHtml(query.database_name || "-")}</td>
@@ -263,21 +345,22 @@ function renderMetabaseQueries() {
       </td>
     </tr>
   `).join("");
+  renderMetabaseTree();
+  renderMetabaseBreadcrumb();
+  const selected = getMetabaseCollection(state.selectedMetabaseCollection);
+  const canWrite = Boolean(selected?.can_write);
+  elements.addMetabaseFolderButton.disabled = !canWrite;
+  elements.addMetabaseQueryButton.disabled = !canWrite;
 }
 
 async function loadMetabaseQueries() {
   const payload = await api("/api/metabase/queries");
   state.metabaseQueries = payload.queries;
   state.metabaseCollections = payload.collections;
+  state.metabaseDatabases = payload.databases || [];
   state.metabaseDetails.clear();
-  const selected = elements.metabaseCollectionFilter.value;
-  elements.metabaseCollectionFilter.innerHTML = '<option value="all">Barcha collectionlar</option>'
-    + state.metabaseCollections.map((collection) => {
-      const value = collection.id === null ? "" : String(collection.id);
-      return `<option value="${escapeHtml(value)}">${escapeHtml(collection.path)}</option>`;
-    }).join("");
-  if ([...elements.metabaseCollectionFilter.options].some((option) => option.value === selected)) {
-    elements.metabaseCollectionFilter.value = selected;
+  if (!getMetabaseCollection(state.selectedMetabaseCollection)) {
+    state.selectedMetabaseCollection = null;
   }
   renderMetabaseQueries();
 }
@@ -342,6 +425,39 @@ function openMetabaseDelete(query) {
   elements.metabaseDeleteError.textContent = "";
   document.querySelector("#deleteMetabaseName").textContent = query.name;
   elements.metabaseDeleteDialog.showModal();
+}
+
+function selectMetabaseCollection(key) {
+  const id = key === "root" ? null : Number(key);
+  if (!getMetabaseCollection(id)) return;
+  state.selectedMetabaseCollection = id;
+  let current = getMetabaseCollection(id);
+  while (current) {
+    state.expandedMetabaseCollections.add(metabaseCollectionKey(current.id));
+    if (current.id === null) break;
+    current = getMetabaseCollection(current.parent_id);
+  }
+  elements.metabaseSearch.value = "";
+  renderMetabaseQueries();
+}
+
+function openMetabaseFolderCreate() {
+  elements.metabaseFolderCreateForm.reset();
+  elements.metabaseFolderCreateError.textContent = "";
+  document.querySelector("#metabaseFolderParent").innerHTML = collectionOptions(state.selectedMetabaseCollection);
+  elements.metabaseFolderCreateDialog.showModal();
+  document.querySelector("#metabaseFolderName").focus();
+}
+
+function openMetabaseQueryCreate() {
+  elements.metabaseQueryCreateForm.reset();
+  elements.metabaseQueryCreateError.textContent = "";
+  document.querySelector("#metabaseQueryCollection").innerHTML = collectionOptions(state.selectedMetabaseCollection);
+  document.querySelector("#metabaseQueryDatabase").innerHTML = state.metabaseDatabases.map((database) => (
+    `<option value="${database.id}">${escapeHtml(database.name)}${database.engine ? ` (${escapeHtml(database.engine)})` : ""}</option>`
+  )).join("") || '<option value="">Database topilmadi</option>';
+  elements.metabaseQueryCreateDialog.showModal();
+  document.querySelector("#metabaseQueryName").focus();
 }
 
 async function loadDatabases() {
@@ -518,7 +634,6 @@ document.querySelector("#cancelDatasetCreate").addEventListener("click", () => e
 elements.userSearch.addEventListener("input", renderUsers);
 elements.datasetSearch.addEventListener("input", renderDatasets);
 elements.metabaseSearch.addEventListener("input", renderMetabaseQueries);
-elements.metabaseCollectionFilter.addEventListener("change", renderMetabaseQueries);
 elements.syncDatasetsButton.addEventListener("click", syncDatasets);
 document.querySelector("#closeDatasetView").addEventListener("click", () => elements.datasetViewDialog.close());
 document.querySelector("#closeDatasetViewAction").addEventListener("click", () => elements.datasetViewDialog.close());
@@ -534,6 +649,32 @@ document.querySelector("#cancelMetabaseEdit").addEventListener("click", () => el
 document.querySelector("#closeMetabaseCollection").addEventListener("click", () => elements.metabaseCollectionDialog.close());
 document.querySelector("#cancelMetabaseCollection").addEventListener("click", () => elements.metabaseCollectionDialog.close());
 document.querySelector("#cancelMetabaseDelete").addEventListener("click", () => elements.metabaseDeleteDialog.close());
+elements.addMetabaseFolderButton.addEventListener("click", openMetabaseFolderCreate);
+elements.addMetabaseQueryButton.addEventListener("click", openMetabaseQueryCreate);
+document.querySelector("#closeMetabaseFolderCreate").addEventListener("click", () => elements.metabaseFolderCreateDialog.close());
+document.querySelector("#cancelMetabaseFolderCreate").addEventListener("click", () => elements.metabaseFolderCreateDialog.close());
+document.querySelector("#closeMetabaseQueryCreate").addEventListener("click", () => elements.metabaseQueryCreateDialog.close());
+document.querySelector("#cancelMetabaseQueryCreate").addEventListener("click", () => elements.metabaseQueryCreateDialog.close());
+
+elements.metabaseTree.addEventListener("click", (event) => {
+  const toggle = event.target.closest("[data-tree-toggle]");
+  if (toggle) {
+    const key = toggle.dataset.treeToggle;
+    if (state.expandedMetabaseCollections.has(key)) state.expandedMetabaseCollections.delete(key);
+    else state.expandedMetabaseCollections.add(key);
+    renderMetabaseTree();
+    return;
+  }
+  const folder = event.target.closest("[data-collection-select]");
+  if (folder) selectMetabaseCollection(folder.dataset.collectionSelect);
+});
+
+[elements.metabaseFolders, elements.metabaseBreadcrumb].forEach((container) => {
+  container.addEventListener("click", (event) => {
+    const folder = event.target.closest("[data-collection-select]");
+    if (folder) selectMetabaseCollection(folder.dataset.collectionSelect);
+  });
+});
 
 elements.datasetFolderTabs.addEventListener("click", (event) => {
   const button = event.target.closest("[data-folder]");
@@ -709,6 +850,60 @@ elements.datasetMoveForm.addEventListener("submit", async (event) => {
     showToast("Dataset papkaga joylandi");
   } catch (error) {
     elements.datasetMoveError.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+elements.metabaseFolderCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.metabaseFolderCreateError.textContent = "";
+  const submit = event.submitter;
+  submit.disabled = true;
+  try {
+    const result = await api("/api/metabase/collections", {
+      method: "POST",
+      body: JSON.stringify({
+        name: document.querySelector("#metabaseFolderName").value,
+        description: document.querySelector("#metabaseFolderDescription").value,
+        parent_id: document.querySelector("#metabaseFolderParent").value,
+      }),
+    });
+    elements.metabaseFolderCreateDialog.close();
+    state.selectedMetabaseCollection = result.id;
+    state.expandedMetabaseCollections.add(metabaseCollectionKey(result.id));
+    await loadMetabaseQueries();
+    showToast("Papka Metabaseda yaratildi");
+  } catch (error) {
+    elements.metabaseFolderCreateError.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+elements.metabaseQueryCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.metabaseQueryCreateError.textContent = "";
+  const submit = event.submitter;
+  submit.disabled = true;
+  try {
+    const collectionId = document.querySelector("#metabaseQueryCollection").value;
+    const result = await api("/api/metabase/queries", {
+      method: "POST",
+      body: JSON.stringify({
+        name: document.querySelector("#metabaseQueryName").value,
+        database_id: document.querySelector("#metabaseQueryDatabase").value,
+        collection_id: collectionId,
+        sql: document.querySelector("#metabaseQuerySql").value,
+        description: document.querySelector("#metabaseQueryDescription").value,
+      }),
+    });
+    elements.metabaseQueryCreateDialog.close();
+    state.selectedMetabaseCollection = collectionId ? Number(collectionId) : null;
+    await loadMetabaseQueries();
+    showToast(`SQL query #${result.id} Metabaseda yaratildi`);
+  } catch (error) {
+    elements.metabaseQueryCreateError.textContent = error.message;
   } finally {
     submit.disabled = false;
   }
