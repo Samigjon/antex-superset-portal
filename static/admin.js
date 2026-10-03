@@ -7,6 +7,13 @@ const state = {
   deleteTarget: null,
   datasetDetails: new Map(),
   datasetDeleteTarget: null,
+  datasetFolder: "all",
+  datasetMoveTarget: null,
+  metabaseQueries: [],
+  metabaseCollections: [],
+  metabaseDetails: new Map(),
+  metabaseDeleteTarget: null,
+  metabaseCollectionAction: null,
 };
 
 const elements = {
@@ -22,6 +29,27 @@ const elements = {
   datasetsEmpty: document.querySelector("#datasetsEmpty"),
   datasetCount: document.querySelector("#datasetCount"),
   datasetSearch: document.querySelector("#datasetSearch"),
+  datasetFolderTabs: document.querySelector("#datasetFolderTabs"),
+  datasetMoveDialog: document.querySelector("#datasetMoveDialog"),
+  datasetMoveForm: document.querySelector("#datasetMoveForm"),
+  datasetMoveError: document.querySelector("#datasetMoveError"),
+  metabasePage: document.querySelector("#metabasePage"),
+  metabaseTable: document.querySelector("#metabaseTable"),
+  metabaseTableWrap: document.querySelector("#metabaseTableWrap"),
+  metabaseEmpty: document.querySelector("#metabaseEmpty"),
+  metabaseCount: document.querySelector("#metabaseCount"),
+  metabaseSearch: document.querySelector("#metabaseSearch"),
+  metabaseCollectionFilter: document.querySelector("#metabaseCollectionFilter"),
+  metabaseViewDialog: document.querySelector("#metabaseViewDialog"),
+  metabaseEditDialog: document.querySelector("#metabaseEditDialog"),
+  metabaseEditForm: document.querySelector("#metabaseEditForm"),
+  metabaseEditError: document.querySelector("#metabaseEditError"),
+  metabaseCollectionDialog: document.querySelector("#metabaseCollectionDialog"),
+  metabaseCollectionForm: document.querySelector("#metabaseCollectionForm"),
+  metabaseCollectionError: document.querySelector("#metabaseCollectionError"),
+  metabaseDeleteDialog: document.querySelector("#metabaseDeleteDialog"),
+  metabaseDeleteForm: document.querySelector("#metabaseDeleteForm"),
+  metabaseDeleteError: document.querySelector("#metabaseDeleteError"),
   addUserButton: document.querySelector("#addUserButton"),
   addDatasetButton: document.querySelector("#addDatasetButton"),
   syncDatasetsButton: document.querySelector("#syncDatasetsButton"),
@@ -137,19 +165,24 @@ async function loadUsers() {
 
 function renderDatasets() {
   const query = elements.datasetSearch.value.trim().toLocaleLowerCase("uz");
-  const datasets = state.datasets.filter((dataset) => (
-    `${dataset.table_name} ${dataset.schema_name || ""} ${dataset.database_name || ""} ${(dataset.tags || []).join(" ")}`
+  const datasets = state.datasets.filter((dataset) => {
+    const matchesFolder = state.datasetFolder === "all"
+      || (state.datasetFolder === "unassigned" && !dataset.folder_name)
+      || dataset.folder_name === state.datasetFolder;
+    const matchesQuery = `${dataset.table_name} ${dataset.schema_name || ""} ${dataset.database_name || ""} ${dataset.folder_name || ""} ${(dataset.tags || []).join(" ")}`
       .toLocaleLowerCase("uz")
-      .includes(query)
-  ));
+      .includes(query);
+    return matchesFolder && matchesQuery;
+  });
   elements.datasetCount.textContent = `${datasets.length} ta dataset`;
-  elements.datasetsEmpty.hidden = state.datasets.length > 0;
-  elements.datasetsTableWrap.hidden = state.datasets.length === 0;
+  elements.datasetsEmpty.hidden = datasets.length > 0;
+  elements.datasetsTableWrap.hidden = datasets.length === 0;
   elements.datasetsTable.innerHTML = datasets.map((dataset) => `
     <tr>
       <td><div class="dataset-name"><strong>${escapeHtml(dataset.table_name)}</strong></div></td>
       <td>${escapeHtml(dataset.schema_name || "-")}</td>
       <td>${escapeHtml(dataset.database_name || "-")}</td>
+      <td>${dataset.folder_name ? `<span class="folder-badge">${icon("folder")}${escapeHtml(dataset.folder_name)}</span>` : '<span class="muted-value">Joylanmagan</span>'}</td>
       <td>${renderTags(dataset.tags)}</td>
       <td><span class="dataset-id">#${dataset.superset_id}</span></td>
       <td>${escapeHtml(formatDateTime(dataset.synced_at))}</td>
@@ -157,6 +190,7 @@ function renderDatasets() {
         <div class="row-actions dataset-actions">
           <button class="icon-button view-button" type="button" data-dataset-view="${dataset.superset_id}" title="Ko'rish" aria-label="${escapeHtml(dataset.table_name)} datasetini ko'rish">${icon("eye")}</button>
           <button class="icon-button edit-button" type="button" data-dataset-edit="${dataset.superset_id}" title="Tahrirlash" aria-label="${escapeHtml(dataset.table_name)} datasetini tahrirlash">${icon("pencil")}</button>
+          <button class="icon-button move-button" type="button" data-dataset-move="${dataset.superset_id}" title="Papkaga ko'chirish" aria-label="${escapeHtml(dataset.table_name)} datasetini papkaga ko'chirish">${icon("folder-input")}</button>
           <button class="icon-button delete-button" type="button" data-dataset-delete="${dataset.superset_id}" title="O'chirish" aria-label="${escapeHtml(dataset.table_name)} datasetini o'chirish">${icon("trash")}</button>
         </div>
       </td>
@@ -174,6 +208,140 @@ async function loadDatasets() {
   state.datasets = payload.datasets;
   state.datasetDetails.clear();
   renderDatasets();
+}
+
+function openDatasetMove(id) {
+  const dataset = state.datasets.find((item) => item.superset_id === id);
+  if (!dataset) return;
+  state.datasetMoveTarget = dataset;
+  elements.datasetMoveError.textContent = "";
+  document.querySelector("#datasetMoveName").textContent = dataset.table_name;
+  document.querySelector("#datasetMoveFolder").value = dataset.folder_name || "";
+  elements.datasetMoveDialog.showModal();
+}
+
+function collectionOptions(selectedId = null) {
+  return state.metabaseCollections.filter((collection) => collection.can_write).map((collection) => {
+    const value = collection.id === null ? "" : String(collection.id);
+    const selected = String(selectedId ?? "") === value ? " selected" : "";
+    return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(collection.path)}</option>`;
+  }).join("");
+}
+
+function queryTypeName(query) {
+  if (query.query_type === "native") return "SQL";
+  if (query.type === "model") return "Model";
+  return "Konstruktor";
+}
+
+function renderMetabaseQueries() {
+  const search = elements.metabaseSearch.value.trim().toLocaleLowerCase("uz");
+  const collection = elements.metabaseCollectionFilter.value;
+  const queries = state.metabaseQueries.filter((query) => {
+    const matchesCollection = collection === "all" || String(query.collection_id ?? "") === collection;
+    const haystack = `${query.name} ${query.collection_name} ${query.database_name} ${query.creator_name}`.toLocaleLowerCase("uz");
+    return matchesCollection && haystack.includes(search);
+  });
+  elements.metabaseCount.textContent = `${queries.length} ta query`;
+  elements.metabaseEmpty.hidden = queries.length > 0;
+  elements.metabaseTableWrap.hidden = queries.length === 0;
+  elements.metabaseTable.innerHTML = queries.map((query) => `
+    <tr>
+      <td><div class="query-name"><strong>${escapeHtml(query.name)}</strong><span>#${query.id}</span></div></td>
+      <td><span class="folder-badge">${icon("folder")}${escapeHtml(query.collection_name)}</span></td>
+      <td><span class="query-type-badge">${escapeHtml(queryTypeName(query))}</span></td>
+      <td>${escapeHtml(query.database_name || "-")}</td>
+      <td>${query.updated_at ? escapeHtml(formatDateTime(query.updated_at)) : "-"}</td>
+      <td>
+        <div class="row-actions metabase-actions">
+          <button class="icon-button view-button" type="button" data-metabase-view="${query.id}" title="Ko'rish" aria-label="${escapeHtml(query.name)} querysini ko'rish">${icon("eye")}</button>
+          <button class="icon-button edit-button" type="button" data-metabase-edit="${query.id}" title="Tahrirlash" aria-label="${escapeHtml(query.name)} querysini tahrirlash">${icon("pencil")}</button>
+          <button class="icon-button copy-button" type="button" data-metabase-copy="${query.id}" title="Nusxalash" aria-label="${escapeHtml(query.name)} querysidan nusxa olish">${icon("copy")}</button>
+          <button class="icon-button move-button" type="button" data-metabase-move="${query.id}" title="Boshqa collectionga ko'chirish" aria-label="${escapeHtml(query.name)} querysini ko'chirish">${icon("folder-input")}</button>
+          <button class="icon-button delete-button" type="button" data-metabase-delete="${query.id}" title="O'chirish" aria-label="${escapeHtml(query.name)} querysini o'chirish">${icon("trash")}</button>
+        </div>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function loadMetabaseQueries() {
+  const payload = await api("/api/metabase/queries");
+  state.metabaseQueries = payload.queries;
+  state.metabaseCollections = payload.collections;
+  state.metabaseDetails.clear();
+  const selected = elements.metabaseCollectionFilter.value;
+  elements.metabaseCollectionFilter.innerHTML = '<option value="all">Barcha collectionlar</option>'
+    + state.metabaseCollections.map((collection) => {
+      const value = collection.id === null ? "" : String(collection.id);
+      return `<option value="${escapeHtml(value)}">${escapeHtml(collection.path)}</option>`;
+    }).join("");
+  if ([...elements.metabaseCollectionFilter.options].some((option) => option.value === selected)) {
+    elements.metabaseCollectionFilter.value = selected;
+  }
+  renderMetabaseQueries();
+}
+
+async function getMetabaseDetails(id, force = false) {
+  if (!force && state.metabaseDetails.has(id)) return state.metabaseDetails.get(id);
+  const payload = await api(`/api/metabase/queries/${id}`);
+  state.metabaseCollections = payload.collections;
+  state.metabaseDetails.set(id, payload.query);
+  return payload.query;
+}
+
+async function openMetabaseView(id) {
+  const query = await getMetabaseDetails(id);
+  document.querySelector("#metabaseViewTitle").textContent = query.name;
+  document.querySelector("#metabaseViewCollection").textContent = query.collection_name;
+  document.querySelector("#metabaseViewType").textContent = queryTypeName(query);
+  document.querySelector("#metabaseViewDisplay").textContent = query.display || "-";
+  document.querySelector("#metabaseViewCreator").textContent = query.creator_name || "-";
+  document.querySelector("#metabaseViewDescription").textContent = query.description || "-";
+  document.querySelector("#metabaseViewSqlRow").hidden = !query.sql;
+  document.querySelector("#metabaseViewSql").textContent = query.sql || "";
+  document.querySelector("#openInMetabase").href = query.metabase_url;
+  elements.metabaseViewDialog.showModal();
+}
+
+async function openMetabaseEdit(id) {
+  const query = await getMetabaseDetails(id, true);
+  elements.metabaseEditForm.reset();
+  elements.metabaseEditError.textContent = "";
+  document.querySelector("#metabaseEditId").value = query.id;
+  document.querySelector("#metabaseEditName").value = query.name;
+  document.querySelector("#metabaseEditCollection").innerHTML = collectionOptions(query.collection_id);
+  document.querySelector("#metabaseEditDescription").value = query.description || "";
+  document.querySelector("#metabaseEditSqlField").hidden = !query.can_edit_sql;
+  document.querySelector("#metabaseEditSql").value = query.sql || "";
+  document.querySelector("#metabaseEditNote").textContent = query.can_edit_sql
+    ? "Saqlanganda o'zgarishlar asosiy Metabase querysiga yoziladi."
+    : "Bu query Metabase konstruktori bilan yaratilgan. Nomi, tavsifi va collectionini shu yerda o'zgartirish mumkin.";
+  elements.metabaseEditDialog.showModal();
+  document.querySelector("#metabaseEditName").focus();
+}
+
+function openMetabaseCollectionAction(query, mode) {
+  state.metabaseCollectionAction = { query, mode };
+  elements.metabaseCollectionForm.reset();
+  elements.metabaseCollectionError.textContent = "";
+  const copying = mode === "copy";
+  document.querySelector("#metabaseCollectionTitle").textContent = copying ? "Querydan nusxa olish" : "Queryni ko'chirish";
+  document.querySelector("#metabaseCollectionQueryName").textContent = query.name;
+  document.querySelector("#metabaseCopyNameField").hidden = !copying;
+  document.querySelector("#metabaseCopyName").value = copying ? `${query.name} - nusxa` : "";
+  document.querySelector("#metabaseTargetCollection").innerHTML = collectionOptions(query.collection_id);
+  document.querySelector("#metabaseCollectionSubmit").innerHTML = copying
+    ? `${icon("copy")}Nusxalash`
+    : `${icon("folder-input")}Ko'chirish`;
+  elements.metabaseCollectionDialog.showModal();
+}
+
+function openMetabaseDelete(query) {
+  state.metabaseDeleteTarget = query;
+  elements.metabaseDeleteError.textContent = "";
+  document.querySelector("#deleteMetabaseName").textContent = query.name;
+  elements.metabaseDeleteDialog.showModal();
 }
 
 async function loadDatabases() {
@@ -349,21 +517,60 @@ document.querySelector("#closeDatasetCreate").addEventListener("click", () => el
 document.querySelector("#cancelDatasetCreate").addEventListener("click", () => elements.datasetCreateDialog.close());
 elements.userSearch.addEventListener("input", renderUsers);
 elements.datasetSearch.addEventListener("input", renderDatasets);
+elements.metabaseSearch.addEventListener("input", renderMetabaseQueries);
+elements.metabaseCollectionFilter.addEventListener("change", renderMetabaseQueries);
 elements.syncDatasetsButton.addEventListener("click", syncDatasets);
 document.querySelector("#closeDatasetView").addEventListener("click", () => elements.datasetViewDialog.close());
 document.querySelector("#closeDatasetViewAction").addEventListener("click", () => elements.datasetViewDialog.close());
 document.querySelector("#closeDatasetEdit").addEventListener("click", () => elements.datasetEditDialog.close());
 document.querySelector("#cancelDatasetEdit").addEventListener("click", () => elements.datasetEditDialog.close());
 document.querySelector("#cancelDatasetDelete").addEventListener("click", () => elements.datasetDeleteDialog.close());
+document.querySelector("#closeDatasetMove").addEventListener("click", () => elements.datasetMoveDialog.close());
+document.querySelector("#cancelDatasetMove").addEventListener("click", () => elements.datasetMoveDialog.close());
+document.querySelector("#closeMetabaseView").addEventListener("click", () => elements.metabaseViewDialog.close());
+document.querySelector("#closeMetabaseViewAction").addEventListener("click", () => elements.metabaseViewDialog.close());
+document.querySelector("#closeMetabaseEdit").addEventListener("click", () => elements.metabaseEditDialog.close());
+document.querySelector("#cancelMetabaseEdit").addEventListener("click", () => elements.metabaseEditDialog.close());
+document.querySelector("#closeMetabaseCollection").addEventListener("click", () => elements.metabaseCollectionDialog.close());
+document.querySelector("#cancelMetabaseCollection").addEventListener("click", () => elements.metabaseCollectionDialog.close());
+document.querySelector("#cancelMetabaseDelete").addEventListener("click", () => elements.metabaseDeleteDialog.close());
+
+elements.datasetFolderTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-folder]");
+  if (!button) return;
+  state.datasetFolder = button.dataset.folder;
+  elements.datasetFolderTabs.querySelectorAll("[data-folder]").forEach((item) => item.classList.toggle("active", item === button));
+  renderDatasets();
+});
 
 elements.datasetsTable.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-dataset-view], [data-dataset-edit], [data-dataset-delete]");
+  const button = event.target.closest("[data-dataset-view], [data-dataset-edit], [data-dataset-move], [data-dataset-delete]");
   if (!button) return;
   button.disabled = true;
   try {
     if (button.dataset.datasetView) await openDatasetView(Number(button.dataset.datasetView));
     if (button.dataset.datasetEdit) await openDatasetEdit(Number(button.dataset.datasetEdit));
+    if (button.dataset.datasetMove) openDatasetMove(Number(button.dataset.datasetMove));
     if (button.dataset.datasetDelete) await openDatasetDelete(Number(button.dataset.datasetDelete));
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+elements.metabaseTable.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-metabase-view], [data-metabase-edit], [data-metabase-copy], [data-metabase-move], [data-metabase-delete]");
+  if (!button) return;
+  const id = Number(button.dataset.metabaseView || button.dataset.metabaseEdit || button.dataset.metabaseCopy || button.dataset.metabaseMove || button.dataset.metabaseDelete);
+  const query = state.metabaseQueries.find((item) => item.id === id);
+  button.disabled = true;
+  try {
+    if (button.dataset.metabaseView) await openMetabaseView(id);
+    if (button.dataset.metabaseEdit) await openMetabaseEdit(id);
+    if (button.dataset.metabaseCopy) openMetabaseCollectionAction(query, "copy");
+    if (button.dataset.metabaseMove) openMetabaseCollectionAction(query, "move");
+    if (button.dataset.metabaseDelete) openMetabaseDelete(query);
   } catch (error) {
     showToast(error.message);
   } finally {
@@ -487,23 +694,114 @@ elements.datasetDeleteForm.addEventListener("submit", async (event) => {
   }
 });
 
+elements.datasetMoveForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.datasetMoveError.textContent = "";
+  const submit = event.submitter;
+  submit.disabled = true;
+  try {
+    await api(`/api/datasets/${state.datasetMoveTarget.superset_id}/folder`, {
+      method: "PUT",
+      body: JSON.stringify({ folder_name: document.querySelector("#datasetMoveFolder").value }),
+    });
+    elements.datasetMoveDialog.close();
+    await loadDatasets();
+    showToast("Dataset papkaga joylandi");
+  } catch (error) {
+    elements.datasetMoveError.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+elements.metabaseEditForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.metabaseEditError.textContent = "";
+  const id = Number(document.querySelector("#metabaseEditId").value);
+  const sqlField = document.querySelector("#metabaseEditSqlField");
+  const submit = event.submitter;
+  submit.disabled = true;
+  try {
+    await api(`/api/metabase/queries/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: document.querySelector("#metabaseEditName").value,
+        collection_id: document.querySelector("#metabaseEditCollection").value,
+        description: document.querySelector("#metabaseEditDescription").value,
+        sql: sqlField.hidden ? null : document.querySelector("#metabaseEditSql").value,
+      }),
+    });
+    elements.metabaseEditDialog.close();
+    await loadMetabaseQueries();
+    showToast("Query Metabaseda yangilandi");
+  } catch (error) {
+    elements.metabaseEditError.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+elements.metabaseCollectionForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.metabaseCollectionError.textContent = "";
+  const { query, mode } = state.metabaseCollectionAction;
+  const submit = event.submitter;
+  submit.disabled = true;
+  try {
+    const payload = { collection_id: document.querySelector("#metabaseTargetCollection").value };
+    if (mode === "copy") payload.name = document.querySelector("#metabaseCopyName").value;
+    await api(`/api/metabase/queries/${query.id}/${mode}`, {
+      method: mode === "copy" ? "POST" : "PUT",
+      body: JSON.stringify(payload),
+    });
+    elements.metabaseCollectionDialog.close();
+    await loadMetabaseQueries();
+    showToast(mode === "copy" ? "Query nusxasi Metabaseda yaratildi" : "Query boshqa collectionga ko'chirildi");
+  } catch (error) {
+    elements.metabaseCollectionError.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+elements.metabaseDeleteForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.metabaseDeleteError.textContent = "";
+  const submit = event.submitter;
+  submit.disabled = true;
+  try {
+    await api(`/api/metabase/queries/${state.metabaseDeleteTarget.id}`, { method: "DELETE" });
+    elements.metabaseDeleteDialog.close();
+    await loadMetabaseQueries();
+    showToast("Query Metabase Trash bo'limiga o'tkazildi");
+  } catch (error) {
+    elements.metabaseDeleteError.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
 document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", async () => {
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
-    const users = button.dataset.page === "users";
-    document.querySelector("#usersPage").hidden = !users;
-    document.querySelector("#datasetsPage").hidden = users;
-    document.querySelector("#pageTitle").textContent = users ? "Foydalanuvchilar" : "SQL datasetlar";
-    elements.addUserButton.hidden = !users;
-    elements.addDatasetButton.hidden = users;
-    elements.syncDatasetsButton.hidden = users;
+    const page = button.dataset.page;
+    document.querySelector("#usersPage").hidden = page !== "users";
+    document.querySelector("#datasetsPage").hidden = page !== "datasets";
+    elements.metabasePage.hidden = page !== "metabase";
+    document.querySelector("#pageTitle").textContent = {
+      users: "Foydalanuvchilar",
+      datasets: "Superset datasetlar",
+      metabase: "Metabase querylar",
+    }[page];
+    elements.addUserButton.hidden = page !== "users";
+    elements.addDatasetButton.hidden = page !== "datasets";
+    elements.syncDatasetsButton.hidden = page !== "datasets";
     elements.sidebar.classList.remove("open");
-    if (!users) {
-      try {
-        await loadDatasets();
-      } catch (error) {
-        showToast(error.message);
-      }
+    try {
+      if (page === "datasets") await loadDatasets();
+      if (page === "metabase") await loadMetabaseQueries();
+    } catch (error) {
+      showToast(error.message);
     }
   });
 });

@@ -4,6 +4,7 @@ import json
 import os
 import secrets
 import sqlite3
+from copy import deepcopy
 from datetime import datetime, timezone
 from functools import wraps
 from urllib.parse import quote, urljoin
@@ -26,6 +27,10 @@ DATABASE_PATH = os.environ.get("DATABASE_PATH", "portal.sqlite3")
 SUPERSET_URL = os.environ.get("SUPERSET_URL", "").rstrip("/")
 SUPERSET_USERNAME = os.environ.get("SUPERSET_USERNAME", "")
 SUPERSET_PASSWORD = os.environ.get("SUPERSET_PASSWORD", "")
+METABASE_URL = os.environ.get("METABASE_URL", "").rstrip("/")
+METABASE_USERNAME = os.environ.get("METABASE_USERNAME", "")
+METABASE_PASSWORD = os.environ.get("METABASE_PASSWORD", "")
+SUPERSET_FOLDERS = ("Дашборд", "Аналитика Отчеты", "Конструктор отчетов")
 
 
 def utc_now():
@@ -70,6 +75,7 @@ def init_db():
             database_id INTEGER,
             database_name TEXT,
             tags_json TEXT NOT NULL DEFAULT '[]',
+            folder_name TEXT,
             synced_at TEXT NOT NULL
         );
         """
@@ -81,6 +87,8 @@ def init_db():
         db.execute(
             "ALTER TABLE superset_datasets ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'"
         )
+    if "folder_name" not in dataset_columns:
+        db.execute("ALTER TABLE superset_datasets ADD COLUMN folder_name TEXT")
     username = os.environ.get("ADMIN_USERNAME", "admin").strip()
     password = os.environ.get("ADMIN_PASSWORD")
     existing = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
@@ -141,6 +149,109 @@ class SupersetConnectionError(RuntimeError):
     def __init__(self, message, status_code=502):
         super().__init__(message)
         self.status_code = status_code
+
+
+class MetabaseConnectionError(RuntimeError):
+    def __init__(self, message, status_code=502):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def metabase_client():
+    if not all((METABASE_URL, METABASE_USERNAME, METABASE_PASSWORD)):
+        raise MetabaseConnectionError("Metabase ulanish sozlamalari kiritilmagan")
+    client = requests.Session()
+    try:
+        response = client.post(
+            urljoin(f"{METABASE_URL}/", "api/session"),
+            json={"username": METABASE_USERNAME, "password": METABASE_PASSWORD},
+            timeout=20,
+        )
+        response.raise_for_status()
+        client.headers.update({"X-Metabase-Session": response.json()["id"]})
+    except (requests.RequestException, KeyError, ValueError) as error:
+        raise MetabaseConnectionError("Metabase tizimiga ulanib bo'lmadi") from error
+    return client
+
+
+def metabase_api(client, method, path, error_message, **kwargs):
+    try:
+        response = client.request(
+            method,
+            urljoin(f"{METABASE_URL}/", path.lstrip("/")),
+            timeout=60,
+            **kwargs,
+        )
+        if response.status_code == 404:
+            raise MetabaseConnectionError("Metabase query topilmadi", 404)
+        response.raise_for_status()
+        if response.status_code == 204 or not response.content:
+            return {}
+        return response.json()
+    except MetabaseConnectionError:
+        raise
+    except requests.HTTPError as error:
+        detail = ""
+        try:
+            payload = error.response.json()
+            detail = payload.get("message") or payload.get("error") or ""
+        except (ValueError, AttributeError):
+            pass
+        message = f"{error_message}: {detail}" if detail else error_message
+        status = 400 if error.response is not None and error.response.status_code < 500 else 502
+        raise MetabaseConnectionError(message, status) from error
+    except (requests.RequestException, ValueError) as error:
+        raise MetabaseConnectionError(error_message) from error
+
+
+def metabase_collections(client):
+    tree = metabase_api(
+        client,
+        "GET",
+        "api/collection/tree",
+        "Metabase collectionlarini olib bo'lmadi",
+        params={"exclude-archived": "true"},
+    )
+    collections = [
+        {"id": None, "name": "Our analytics", "path": "Our analytics", "can_write": True}
+    ]
+
+    def walk(items, parents=()):
+        for item in items:
+            names = (*parents, item.get("name") or "Nomsiz collection")
+            collections.append(
+                {
+                    "id": int(item["id"]),
+                    "name": names[-1],
+                    "path": " / ".join(names),
+                    "can_write": bool(item.get("can_write", False)),
+                }
+            )
+            walk(item.get("children") or [], names)
+
+    walk(tree)
+    return collections
+
+
+def metabase_native_sql(card):
+    dataset_query = card.get("dataset_query") or {}
+    stages = dataset_query.get("stages") or []
+    if stages and isinstance(stages[0], dict):
+        return stages[0].get("native")
+    native = dataset_query.get("native") or {}
+    return native.get("query")
+
+
+def set_metabase_native_sql(dataset_query, sql):
+    updated = deepcopy(dataset_query or {})
+    stages = updated.get("stages") or []
+    if stages and isinstance(stages[0], dict) and "native" in stages[0]:
+        stages[0]["native"] = sql
+        return updated
+    if isinstance(updated.get("native"), dict):
+        updated["native"]["query"] = sql
+        return updated
+    raise MetabaseConnectionError("Bu query SQL matnini portal orqali tahrirlab bo'lmaydi", 400)
 
 
 def superset_client(write=False):
@@ -398,7 +509,8 @@ def list_users():
 def list_datasets():
     datasets = get_db().execute(
         """
-        SELECT superset_id, table_name, schema_name, database_id, database_name, tags_json, synced_at
+        SELECT superset_id, table_name, schema_name, database_id, database_name,
+               tags_json, folder_name, synced_at
         FROM superset_datasets
         ORDER BY table_name COLLATE NOCASE, superset_id
         """
@@ -411,7 +523,26 @@ def list_datasets():
         except (TypeError, ValueError):
             item["tags"] = []
         result.append(item)
-    return jsonify({"datasets": result})
+    return jsonify({"datasets": result, "folders": list(SUPERSET_FOLDERS)})
+
+
+@app.put("/api/datasets/<int:dataset_id>/folder")
+@require_admin
+def move_dataset_folder(dataset_id):
+    payload = request.get_json(silent=True) or {}
+    folder_name = payload.get("folder_name")
+    if folder_name in (None, ""):
+        folder_name = None
+    elif folder_name not in SUPERSET_FOLDERS:
+        return jsonify({"error": "Superset papkasi noto'g'ri"}), 400
+    cursor = get_db().execute(
+        "UPDATE superset_datasets SET folder_name = ? WHERE superset_id = ?",
+        (folder_name, dataset_id),
+    )
+    get_db().commit()
+    if not cursor.rowcount:
+        return jsonify({"error": "Dataset topilmadi"}), 404
+    return jsonify({"ok": True})
 
 
 @app.get("/api/superset/databases")
@@ -675,6 +806,208 @@ def delete_dataset(dataset_id):
         return jsonify({"error": str(error)}), error.status_code
     get_db().execute("DELETE FROM superset_datasets WHERE superset_id = ?", (dataset_id,))
     get_db().commit()
+    return jsonify({"ok": True})
+
+
+def parse_collection_id(value):
+    if value in (None, "", "null"):
+        return None
+    try:
+        collection_id = int(value)
+    except (TypeError, ValueError) as error:
+        raise MetabaseConnectionError("Collection noto'g'ri", 400) from error
+    if collection_id < 1:
+        raise MetabaseConnectionError("Collection noto'g'ri", 400)
+    return collection_id
+
+
+def metabase_card_summary(card, collection_map, database_map):
+    creator = card.get("creator") or {}
+    creator_name = " ".join(
+        part for part in (creator.get("first_name"), creator.get("last_name")) if part
+    )
+    collection_id = card.get("collection_id")
+    collection = collection_map.get(collection_id) or {}
+    return {
+        "id": int(card["id"]),
+        "name": card.get("name") or "Nomsiz query",
+        "description": card.get("description") or "",
+        "collection_id": collection_id,
+        "collection_name": collection.get("path") or "Our analytics",
+        "display": card.get("display") or "table",
+        "query_type": card.get("query_type") or "query",
+        "type": card.get("type") or "question",
+        "database_id": card.get("database_id"),
+        "database_name": database_map.get(card.get("database_id"), "-"),
+        "updated_at": card.get("updated_at"),
+        "creator_name": creator_name or "-",
+        "metabase_url": urljoin(f"{METABASE_URL}/", f"question/{card['id']}"),
+    }
+
+
+@app.get("/api/metabase/queries")
+@require_admin
+def list_metabase_queries():
+    try:
+        client = metabase_client()
+        cards = metabase_api(
+            client,
+            "GET",
+            "api/card",
+            "Metabase querylarini olib bo'lmadi",
+            params={"f": "all"},
+        )
+        collections = metabase_collections(client)
+        databases = metabase_api(
+            client, "GET", "api/database", "Metabase bazalarini olib bo'lmadi"
+        )
+    except MetabaseConnectionError as error:
+        app.logger.warning("Metabase query list failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    collection_map = {item["id"]: item for item in collections}
+    database_map = {
+        item.get("id"): item.get("name") or item.get("details", {}).get("dbname") or "-"
+        for item in databases.get("data", databases) if isinstance(item, dict)
+    }
+    queries = [
+        metabase_card_summary(card, collection_map, database_map)
+        for card in cards
+        if not card.get("archived")
+    ]
+    queries.sort(key=lambda item: (item["collection_name"].casefold(), item["name"].casefold()))
+    return jsonify({"queries": queries, "collections": collections})
+
+
+@app.get("/api/metabase/queries/<int:card_id>")
+@require_admin
+def get_metabase_query(card_id):
+    try:
+        client = metabase_client()
+        card = metabase_api(
+            client, "GET", f"api/card/{card_id}", "Metabase queryni olib bo'lmadi"
+        )
+        collections = metabase_collections(client)
+    except MetabaseConnectionError as error:
+        app.logger.warning("Metabase query read failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    collection_map = {item["id"]: item for item in collections}
+    query = metabase_card_summary(card, collection_map, {})
+    query["sql"] = metabase_native_sql(card)
+    query["can_edit_sql"] = query["query_type"] == "native" and query["sql"] is not None
+    return jsonify({"query": query, "collections": collections})
+
+
+@app.put("/api/metabase/queries/<int:card_id>")
+@require_admin
+def update_metabase_query(card_id):
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name", "")).strip()
+    description = str(payload.get("description", "")).strip()
+    if not 1 <= len(name) <= 250:
+        return jsonify({"error": "Query nomi 1 dan 250 belgigacha bo'lishi kerak"}), 400
+    if len(description) > 5000:
+        return jsonify({"error": "Tavsif 5000 belgidan oshmasligi kerak"}), 400
+    try:
+        collection_id = parse_collection_id(payload.get("collection_id"))
+        client = metabase_client()
+        card = metabase_api(
+            client, "GET", f"api/card/{card_id}", "Metabase queryni olib bo'lmadi"
+        )
+        update_payload = {
+            "name": name,
+            "description": description or None,
+            "collection_id": collection_id,
+        }
+        if card.get("query_type") == "native" and payload.get("sql") is not None:
+            sql = str(payload.get("sql", "")).strip()
+            if not sql:
+                return jsonify({"error": "SQL so'rovi bo'sh bo'lishi mumkin emas"}), 400
+            update_payload["dataset_query"] = set_metabase_native_sql(
+                card.get("dataset_query"), sql
+            )
+        metabase_api(
+            client,
+            "PUT",
+            f"api/card/{card_id}",
+            "Metabase queryni yangilab bo'lmadi",
+            json=update_payload,
+        )
+    except MetabaseConnectionError as error:
+        app.logger.warning("Metabase query update failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    return jsonify({"ok": True})
+
+
+@app.put("/api/metabase/queries/<int:card_id>/move")
+@require_admin
+def move_metabase_query(card_id):
+    try:
+        collection_id = parse_collection_id(
+            (request.get_json(silent=True) or {}).get("collection_id")
+        )
+        client = metabase_client()
+        metabase_api(
+            client,
+            "PUT",
+            f"api/card/{card_id}",
+            "Metabase queryni ko'chirib bo'lmadi",
+            json={"collection_id": collection_id},
+        )
+    except MetabaseConnectionError as error:
+        app.logger.warning("Metabase query move failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    return jsonify({"ok": True})
+
+
+@app.post("/api/metabase/queries/<int:card_id>/copy")
+@require_admin
+def copy_metabase_query(card_id):
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name", "")).strip()
+    if name and len(name) > 250:
+        return jsonify({"error": "Query nomi 250 belgidan oshmasligi kerak"}), 400
+    try:
+        collection_id = parse_collection_id(payload.get("collection_id"))
+        client = metabase_client()
+        copied = metabase_api(
+            client,
+            "POST",
+            f"api/card/{card_id}/copy",
+            "Metabase querydan nusxa olib bo'lmadi",
+        )
+        copied_id = copied.get("id")
+        if not copied_id:
+            raise MetabaseConnectionError("Metabase nusxa ID sini qaytarmadi")
+        update_payload = {"collection_id": collection_id}
+        if name:
+            update_payload["name"] = name
+        metabase_api(
+            client,
+            "PUT",
+            f"api/card/{copied_id}",
+            "Query nusxasini collectionga joylab bo'lmadi",
+            json=update_payload,
+        )
+    except MetabaseConnectionError as error:
+        app.logger.warning("Metabase query copy failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    return jsonify({"ok": True, "id": int(copied_id)}), 201
+
+
+@app.delete("/api/metabase/queries/<int:card_id>")
+@require_admin
+def delete_metabase_query(card_id):
+    try:
+        client = metabase_client()
+        metabase_api(
+            client,
+            "DELETE",
+            f"api/card/{card_id}",
+            "Metabase queryni o'chirib bo'lmadi",
+        )
+    except MetabaseConnectionError as error:
+        app.logger.warning("Metabase query delete failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
     return jsonify({"ok": True})
 
 

@@ -41,7 +41,11 @@
         </button>
         <button class="nav-item" type="button" data-page="datasets">
           <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#database"></use></svg>
-          <span>SQL datasetlar</span>
+          <span>Superset datasetlar</span>
+        </button>
+        <button class="nav-item" type="button" data-page="metabase">
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#bar-chart"></use></svg>
+          <span>Metabase querylar</span>
         </button>
       </nav>
       <div class="sidebar-user">
@@ -107,6 +111,13 @@
       </section>
 
       <section id="datasetsPage" class="content-section" hidden>
+        <div id="datasetFolderTabs" class="folder-tabs" aria-label="Superset papkalari">
+          <button class="folder-tab active" type="button" data-folder="all">Barchasi</button>
+          <button class="folder-tab" type="button" data-folder="Дашборд">Дашборд</button>
+          <button class="folder-tab" type="button" data-folder="Аналитика Отчеты">Аналитика Отчеты</button>
+          <button class="folder-tab" type="button" data-folder="Конструктор отчетов">Конструктор отчетов</button>
+          <button class="folder-tab" type="button" data-folder="unassigned">Joylanmagan</button>
+        </div>
         <div class="table-tools dataset-tools">
           <label class="search-field">
             <svg class="icon search-icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#search"></use></svg>
@@ -126,6 +137,7 @@
                 <th>Dataset nomi</th>
                 <th>Schema</th>
                 <th>Ma'lumotlar bazasi</th>
+                <th>Papka</th>
                 <th>Tag</th>
                 <th>Superset ID</th>
                 <th>Sinxronlangan</th>
@@ -133,6 +145,39 @@
               </tr>
             </thead>
             <tbody id="datasetsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="metabasePage" class="content-section" hidden>
+        <div class="table-tools metabase-tools">
+          <label class="search-field">
+            <svg class="icon search-icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#search"></use></svg>
+            <input id="metabaseSearch" type="search" placeholder="Queryni qidirish" aria-label="Metabase queryni qidirish">
+          </label>
+          <label class="filter-field">
+            <span class="sr-only">Collection</span>
+            <select id="metabaseCollectionFilter"><option value="all">Barcha collectionlar</option></select>
+          </label>
+          <span id="metabaseCount" class="count-label"></span>
+        </div>
+        <div id="metabaseEmpty" class="empty-state" hidden>
+          <svg class="empty-database" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#bar-chart"></use></svg>
+          <h2>Metabase querylar topilmadi</h2>
+        </div>
+        <div id="metabaseTableWrap" class="table-wrap">
+          <table class="metabase-table">
+            <thead>
+              <tr>
+                <th>Query nomi</th>
+                <th>Collection</th>
+                <th>Tur</th>
+                <th>Ma'lumotlar bazasi</th>
+                <th>Yangilangan</th>
+                <th><span class="sr-only">Amallar</span></th>
+              </tr>
+            </thead>
+            <tbody id="metabaseTable"></tbody>
           </table>
         </div>
       </section>
@@ -331,6 +376,104 @@
       <div class="modal-actions">
         <button id="cancelDatasetDelete" class="secondary-button" type="button">Bekor qilish</button>
         <button class="danger-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#trash"></use></svg>Supersetdan o'chirish</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="datasetMoveDialog" class="modal action-modal">
+    <form id="datasetMoveForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">SUPERSET PAPKA</p><h2>Datasetni ko'chirish</h2></div>
+        <button id="closeDatasetMove" class="icon-button" type="button" title="Yopish" aria-label="Yopish"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg></button>
+      </div>
+      <p><strong id="datasetMoveName"></strong></p>
+      <div class="field">
+        <label for="datasetMoveFolder">Papka</label>
+        <select id="datasetMoveFolder">
+          <option value="">Joylanmagan</option>
+          <option value="Дашборд">Дашборд</option>
+          <option value="Аналитика Отчеты">Аналитика Отчеты</option>
+          <option value="Конструктор отчетов">Конструктор отчетов</option>
+        </select>
+      </div>
+      <p id="datasetMoveError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelDatasetMove" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="primary-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#folder-input"></use></svg>Ko'chirish</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="metabaseViewDialog" class="modal dataset-modal">
+    <div class="dataset-dialog-body">
+      <div class="modal-header">
+        <div><p class="eyebrow">METABASE QUERY</p><h2 id="metabaseViewTitle"></h2></div>
+        <button id="closeMetabaseView" class="icon-button" type="button" title="Yopish" aria-label="Yopish"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg></button>
+      </div>
+      <dl class="dataset-details">
+        <div><dt>Collection</dt><dd id="metabaseViewCollection"></dd></div>
+        <div><dt>Tur</dt><dd id="metabaseViewType"></dd></div>
+        <div><dt>Vizualizatsiya</dt><dd id="metabaseViewDisplay"></dd></div>
+        <div><dt>Muallif</dt><dd id="metabaseViewCreator"></dd></div>
+        <div class="full-width"><dt>Tavsif</dt><dd id="metabaseViewDescription" class="preserve-text"></dd></div>
+        <div id="metabaseViewSqlRow" class="full-width"><dt>SQL</dt><dd><pre id="metabaseViewSql"></pre></dd></div>
+      </dl>
+      <div class="modal-actions">
+        <a id="openInMetabase" class="secondary-button" href="#" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#external-link"></use></svg>Metabaseda ochish</a>
+        <button id="closeMetabaseViewAction" class="primary-button" type="button">Yopish</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="metabaseEditDialog" class="modal dataset-modal">
+    <form id="metabaseEditForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">METABASE QUERY</p><h2>Queryni tahrirlash</h2></div>
+        <button id="closeMetabaseEdit" class="icon-button" type="button" title="Yopish" aria-label="Yopish"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg></button>
+      </div>
+      <input id="metabaseEditId" type="hidden">
+      <div class="form-grid">
+        <div class="field full-width"><label for="metabaseEditName">Query nomi</label><input id="metabaseEditName" required maxlength="250"></div>
+        <div class="field full-width"><label for="metabaseEditCollection">Collection</label><select id="metabaseEditCollection"></select></div>
+        <div class="field full-width"><label for="metabaseEditDescription">Tavsif</label><textarea id="metabaseEditDescription" maxlength="5000" rows="3"></textarea></div>
+        <div id="metabaseEditSqlField" class="field full-width"><label for="metabaseEditSql">SQL</label><textarea id="metabaseEditSql" class="code-input" rows="12" spellcheck="false"></textarea></div>
+      </div>
+      <p id="metabaseEditNote" class="form-note"></p>
+      <p id="metabaseEditError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelMetabaseEdit" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="primary-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#save"></use></svg>Metabaseda saqlash</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="metabaseCollectionDialog" class="modal action-modal">
+    <form id="metabaseCollectionForm" method="dialog">
+      <div class="modal-header">
+        <div><p class="eyebrow">METABASE COLLECTION</p><h2 id="metabaseCollectionTitle"></h2></div>
+        <button id="closeMetabaseCollection" class="icon-button" type="button" title="Yopish" aria-label="Yopish"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#x"></use></svg></button>
+      </div>
+      <p><strong id="metabaseCollectionQueryName"></strong></p>
+      <div id="metabaseCopyNameField" class="field"><label for="metabaseCopyName">Nusxa nomi</label><input id="metabaseCopyName" maxlength="250"></div>
+      <div class="field"><label for="metabaseTargetCollection">Collection</label><select id="metabaseTargetCollection"></select></div>
+      <p id="metabaseCollectionError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelMetabaseCollection" class="secondary-button" type="button">Bekor qilish</button>
+        <button id="metabaseCollectionSubmit" class="primary-button" type="submit"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="metabaseDeleteDialog" class="modal confirm-modal">
+    <form id="metabaseDeleteForm" method="dialog">
+      <div class="danger-mark">!</div>
+      <h2>Queryni Metabasedan o'chirish</h2>
+      <p><strong id="deleteMetabaseName"></strong> querysini o'chirishni tasdiqlaysizmi?</p>
+      <p class="danger-copy">Query Metabase Trash bo'limiga o'tkaziladi.</p>
+      <p id="metabaseDeleteError" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button id="cancelMetabaseDelete" class="secondary-button" type="button">Bekor qilish</button>
+        <button class="danger-button" type="submit"><svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#trash"></use></svg>Metabasedan o'chirish</button>
       </div>
     </form>
   </dialog>
