@@ -484,6 +484,39 @@ a.secondary-button {
   padding: 34px clamp(22px, 4vw, 56px) 56px;
 }
 
+#datasetsPage {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 34px;
+}
+
+#datasetsPage > .folder-tabs,
+#datasetsPage > .table-tools {
+  flex: 0 0 auto;
+}
+
+#datasetsTableWrap {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+#datasetsTableWrap th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+#datasetsEmpty {
+  min-height: 0;
+  flex: 1;
+}
+
 #metabasePage {
   display: flex;
   flex: 1;
@@ -1490,6 +1523,7 @@ tbody tr:hover {
     padding-top: 24px;
   }
 
+  #datasetsPage,
   #metabasePage {
     padding-bottom: 24px;
   }
