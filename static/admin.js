@@ -329,8 +329,7 @@ function renderMetabaseQueries() {
   }).join("");
   elements.metabaseTable.innerHTML = queries.map((query) => `
     <tr>
-      <td><div class="query-name"><div class="query-name-main">${icon("file-code")}<strong>${escapeHtml(query.name)}</strong></div><span>#${query.id}</span></div></td>
-      <td><span class="folder-badge">${icon("folder")}${escapeHtml(query.collection_name)}</span></td>
+      <td><div class="query-name"><div class="query-name-main">${icon("file-code")}<strong>${escapeHtml(query.name)}</strong></div><span>#${query.id} · ${escapeHtml(query.collection_name)}</span></div></td>
       <td><span class="query-type-badge">${escapeHtml(queryTypeName(query))}</span></td>
       <td>${escapeHtml(query.database_name || "-")}</td>
       <td>${query.updated_at ? escapeHtml(formatDateTime(query.updated_at)) : "-"}</td>

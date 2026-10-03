@@ -846,7 +846,7 @@ a.secondary-button {
 }
 
 .metabase-table {
-  min-width: 1160px;
+  min-width: 900px;
 }
 
 .metabase-table th:last-child,
@@ -1391,11 +1391,9 @@ tbody tr:hover {
   .metabase-table th:nth-child(2),
   .metabase-table th:nth-child(3),
   .metabase-table th:nth-child(4),
-  .metabase-table th:nth-child(5),
   .metabase-table td:nth-child(2),
   .metabase-table td:nth-child(3),
-  .metabase-table td:nth-child(4),
-  .metabase-table td:nth-child(5) {
+  .metabase-table td:nth-child(4) {
     display: none;
   }
 
