@@ -184,7 +184,19 @@
             </header>
             <div id="metabaseFoldersSection" class="folder-section">
               <h2>Ichki papkalar</h2>
-              <div id="metabaseFolders" class="collection-folder-grid"></div>
+              <div class="folder-table-scroll">
+                <table class="folder-table">
+                  <thead>
+                    <tr>
+                      <th>Papka nomi</th>
+                      <th>Ichki papkalar</th>
+                      <th>Querylar</th>
+                      <th><span class="sr-only">Ochish</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="metabaseFolders"></tbody>
+                </table>
+              </div>
             </div>
             <div id="metabaseEmpty" class="empty-state compact-empty" hidden>
               <svg class="empty-database" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#bar-chart"></use></svg>

@@ -328,11 +328,15 @@ function renderMetabaseQueries() {
     const childCount = directMetabaseChildren(folder.id).length;
     const queryCount = state.metabaseQueries.filter((query) => query.collection_id === folder.id).length;
     return `
-      <button class="collection-folder" type="button" data-collection-select="${folder.id}">
-        <span class="collection-folder-icon">${icon("folder")}</span>
-        <span class="collection-folder-copy"><strong>${escapeHtml(folder.name)}</strong><small>${childCount} papka · ${queryCount} query</small></span>
-        ${icon("chevron-right")}
-      </button>
+      <tr>
+        <td><button class="collection-folder-link" type="button" data-collection-select="${folder.id}" title="${escapeHtml(folder.name)} papkasini ochish">
+          <span class="collection-folder-icon">${icon("folder")}</span>
+          <strong>${escapeHtml(folder.name)}</strong>
+        </button></td>
+        <td>${childCount}</td>
+        <td>${queryCount}</td>
+        <td><button class="icon-button" type="button" data-collection-select="${folder.id}" title="Papkani ochish" aria-label="${escapeHtml(folder.name)} papkasini ochish">${icon("chevron-right")}</button></td>
+      </tr>
     `;
   }).join("");
   elements.metabaseTable.innerHTML = queries.map((query) => `
