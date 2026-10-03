@@ -34,16 +34,19 @@
       <a class="sidebar-brand" href="/" aria-label="Antex bosh sahifa">
         <img src="{{ url_for('static', filename='antex.svg') }}" alt="Antex">
       </a>
+      <button id="collapseSidebarButton" class="icon-button sidebar-collapse-button" type="button" title="Yon panelni yig'ish" aria-label="Yon panelni yig'ish">
+        <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#chevron-left"></use></svg>
+      </button>
       <nav class="sidebar-nav" aria-label="Asosiy navigatsiya">
-        <button class="nav-item active" type="button" data-page="users">
+        <button class="nav-item active" type="button" data-page="users" title="Foydalanuvchilar">
           <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#users"></use></svg>
           <span>Foydalanuvchilar</span>
         </button>
-        <button class="nav-item" type="button" data-page="datasets">
+        <button class="nav-item" type="button" data-page="datasets" title="Superset datasetlar">
           <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#database"></use></svg>
           <span>Superset datasetlar</span>
         </button>
-        <button class="nav-item" type="button" data-page="metabase">
+        <button class="nav-item" type="button" data-page="metabase" title="Metabase querylar">
           <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#bar-chart"></use></svg>
           <span>Metabase querylar</span>
         </button>

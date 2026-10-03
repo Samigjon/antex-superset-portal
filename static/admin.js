@@ -86,6 +86,7 @@ const elements = {
   datasetDeleteError: document.querySelector("#datasetDeleteError"),
   toast: document.querySelector("#toast"),
   sidebar: document.querySelector(".sidebar"),
+  collapseSidebarButton: document.querySelector("#collapseSidebarButton"),
 };
 
 async function api(path, options = {}) {
@@ -117,6 +118,13 @@ function showApp(user) {
   document.querySelector("#currentName").textContent = user.full_name;
   document.querySelector("#currentRole").textContent = roleName(user.role);
   document.querySelector("#userAvatar").textContent = initials(user.full_name);
+  setSidebarCollapsed(window.localStorage.getItem("antex-sidebar-collapsed") === "true");
+}
+
+function setSidebarCollapsed(collapsed) {
+  elements.appView.classList.toggle("sidebar-collapsed", collapsed);
+  elements.collapseSidebarButton.setAttribute("aria-label", collapsed ? "Yon panelni ochish" : "Yon panelni yig'ish");
+  elements.collapseSidebarButton.title = collapsed ? "Yon panelni ochish" : "Yon panelni yig'ish";
 }
 
 function initials(name) {
@@ -1001,6 +1009,11 @@ document.querySelectorAll(".nav-item").forEach((button) => {
 });
 
 document.querySelector("#menuButton").addEventListener("click", () => elements.sidebar.classList.toggle("open"));
+elements.collapseSidebarButton.addEventListener("click", () => {
+  const collapsed = !elements.appView.classList.contains("sidebar-collapsed");
+  setSidebarCollapsed(collapsed);
+  window.localStorage.setItem("antex-sidebar-collapsed", String(collapsed));
+});
 
 (async function boot() {
   try {
