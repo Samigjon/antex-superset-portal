@@ -268,7 +268,7 @@ function renderMetabaseTree() {
     const expanded = state.expandedMetabaseCollections.has(key);
     const selected = state.selectedMetabaseCollection === collection.id;
     return `
-      <div class="tree-node" style="--tree-depth: ${collection.depth || 0}">
+      <div class="tree-node tree-depth-${Math.min(collection.depth || 0, 8)}">
         ${children.length
           ? `<button class="tree-toggle${expanded ? " expanded" : ""}" type="button" data-tree-toggle="${key}" title="${expanded ? "Yopish" : "Ochish"}" aria-label="${escapeHtml(collection.name)} papkasini ${expanded ? "yopish" : "ochish"}">${icon("chevron-right")}</button>`
           : '<span class="tree-toggle-placeholder"></span>'}
