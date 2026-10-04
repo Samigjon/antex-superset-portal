@@ -84,7 +84,15 @@ textarea:focus-visible {
   position: relative;
   width: min(48vw, 310px);
   padding: 32px 0;
+  color: inherit;
+  text-decoration: none;
   animation: mark-arrive 900ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.brand-mark:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--red);
+  outline-offset: 10px;
 }
 
 .brand-mark img {
