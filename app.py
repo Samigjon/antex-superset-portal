@@ -854,6 +854,145 @@ def metabase_card_summary(card, collection_map, database_map):
     }
 
 
+def clickhouse_data_kind(database_type, base_type):
+    normalized = (database_type or "").lower()
+    base = (base_type or "").lower()
+    if "array(" in normalized:
+        return "Ro'yxat"
+    if "map(" in normalized:
+        return "Kalit-qiymat"
+    if "tuple(" in normalized:
+        return "Tuzilma"
+    if "datetime" in normalized or "datetime" in base:
+        return "Sana va vaqt"
+    if normalized.startswith("date") or base.endswith("/date"):
+        return "Sana"
+    if any(item in normalized for item in ("decimal", "float")) or any(
+        item in base for item in ("decimal", "float")
+    ):
+        return "O'nlik son"
+    if any(item in normalized for item in ("int", "uint")) or "integer" in base:
+        return "Butun son"
+    if "bool" in normalized or base.endswith("/boolean"):
+        return "Ha / yo'q"
+    if "uuid" in normalized or base.endswith("/uuid"):
+        return "UUID"
+    if any(item in normalized for item in ("json", "object(")) or base.endswith("/json"):
+        return "JSON"
+    if any(item in normalized for item in ("ipv4", "ipv6")):
+        return "IP manzil"
+    if "enum" in normalized or base.endswith("/category"):
+        return "Kategoriya"
+    if any(item in normalized for item in ("string", "fixedstring")) or base.endswith("/text"):
+        return "Matn"
+    return "Boshqa"
+
+
+def clickhouse_semantic_label(semantic_type):
+    labels = {
+        "type/PK": "Asosiy kalit",
+        "type/FK": "Tashqi kalit",
+        "type/Company": "Kompaniya",
+        "type/Email": "Email",
+        "type/URL": "Havola",
+        "type/Category": "Kategoriya",
+        "type/Quantity": "Miqdor",
+        "type/Currency": "Valyuta",
+    }
+    if not semantic_type:
+        return None
+    return labels.get(semantic_type, semantic_type.removeprefix("type/"))
+
+
+@app.get("/api/clickhouse/catalog")
+@require_admin
+def clickhouse_catalog():
+    try:
+        client = metabase_client()
+        database_payload = metabase_api(
+            client, "GET", "api/database", "Metabase bazalarini olib bo'lmadi"
+        )
+        databases = [
+            item
+            for item in database_payload.get("data", database_payload)
+            if isinstance(item, dict)
+            and item.get("id")
+            and "clickhouse" in str(item.get("engine", "")).lower()
+        ]
+        if not databases:
+            raise MetabaseConnectionError("ClickHouse ulanishi topilmadi", 404)
+
+        tables = []
+        database_summaries = []
+        for database in databases:
+            database_id = int(database["id"])
+            metadata = metabase_api(
+                client,
+                "GET",
+                f"api/database/{database_id}/metadata",
+                "ClickHouse strukturasini olib bo'lmadi",
+            )
+            database_name = metadata.get("name") or database.get("name") or f"Database {database_id}"
+            database_summaries.append(
+                {
+                    "id": database_id,
+                    "name": database_name,
+                    "engine": metadata.get("engine") or database.get("engine") or "clickhouse",
+                    "updated_at": metadata.get("updated_at"),
+                }
+            )
+            for table in metadata.get("tables") or []:
+                if table.get("active") is False:
+                    continue
+                columns = []
+                for field in table.get("fields") or []:
+                    if field.get("active") is False:
+                        continue
+                    database_type = field.get("database_type") or "-"
+                    semantic_type = field.get("semantic_type")
+                    columns.append(
+                        {
+                            "id": int(field["id"]),
+                            "name": field.get("name") or "",
+                            "display_name": field.get("display_name") or field.get("name") or "",
+                            "database_type": database_type,
+                            "data_kind": clickhouse_data_kind(database_type, field.get("effective_type") or field.get("base_type")),
+                            "semantic_type": semantic_type,
+                            "semantic_label": clickhouse_semantic_label(semantic_type),
+                            "description": field.get("description") or "",
+                            "nullable": bool(field.get("database_is_nullable")) or database_type.lower().startswith("nullable("),
+                            "primary_key": bool(field.get("database_is_pk")) or semantic_type == "type/PK",
+                            "indexed": bool(field.get("database_indexed")),
+                            "position": int(field.get("database_position", field.get("position", 0)) or 0),
+                        }
+                    )
+                columns.sort(key=lambda item: (item["position"], item["name"].casefold()))
+                tables.append(
+                    {
+                        "id": int(table["id"]),
+                        "database_id": database_id,
+                        "database_name": database_name,
+                        "schema": table.get("schema") or "default",
+                        "name": table.get("name") or "",
+                        "display_name": table.get("display_name") or table.get("name") or "",
+                        "description": table.get("description") or "",
+                        "estimated_row_count": table.get("estimated_row_count"),
+                        "columns": columns,
+                    }
+                )
+        tables.sort(
+            key=lambda item: (
+                item["database_name"].casefold(),
+                item["schema"].casefold(),
+                item["name"].casefold(),
+            )
+        )
+    except MetabaseConnectionError as error:
+        app.logger.warning("ClickHouse catalog read failed: %s", error)
+        return jsonify({"error": str(error)}), error.status_code
+    return jsonify({"databases": database_summaries, "tables": tables})
+
+
 @app.get("/api/metabase/queries")
 @require_admin
 def list_metabase_queries():

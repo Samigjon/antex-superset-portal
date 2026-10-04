@@ -517,6 +517,292 @@ a.secondary-button {
   flex: 1;
 }
 
+#catalogPage {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 34px;
+}
+
+.catalog-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.catalog-schema-filter select {
+  width: 220px;
+  height: 42px;
+  padding: 0 34px 0 13px;
+  border: 1px solid #353a42;
+  border-radius: 5px;
+  background: #0f1114;
+  color: var(--text);
+}
+
+.catalog-toolbar .count-label {
+  margin-left: auto;
+}
+
+.catalog-explorer {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.catalog-table-pane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  background: #0f1114;
+}
+
+.catalog-pane-heading {
+  display: flex;
+  min-height: 52px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line-soft);
+  color: #8f959e;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.catalog-pane-heading span:last-child,
+.catalog-position {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.catalog-table-list {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  scrollbar-gutter: stable;
+}
+
+.catalog-table-group h3 {
+  margin: 14px 9px 7px;
+  overflow: hidden;
+  color: #737a84;
+  font-size: 10px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.catalog-table-group:first-child h3 {
+  margin-top: 6px;
+}
+
+.catalog-table-item {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 50px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #b7bdc5;
+  grid-template-columns: 20px minmax(0, 1fr);
+  text-align: left;
+}
+
+.catalog-table-item:hover,
+.catalog-table-item.active {
+  background: #24282d;
+  color: white;
+}
+
+.catalog-table-item.active {
+  box-shadow: inset 2px 0 var(--red);
+}
+
+.catalog-table-item > .icon {
+  width: 17px;
+  height: 17px;
+  color: #ff6565;
+}
+
+.catalog-table-item > span,
+.catalog-column-name {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.catalog-table-item strong,
+.catalog-table-item small,
+.catalog-column-name strong,
+.catalog-column-name small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-table-item small,
+.catalog-column-name small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.catalog-list-empty {
+  padding: 28px 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.catalog-structure {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.catalog-table-header {
+  display: flex;
+  min-height: 70px;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 20px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.catalog-table-path {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.catalog-table-path .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.catalog-table-header h2 {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: 0;
+}
+
+.catalog-table-header p {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.catalog-table-stats {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+
+.catalog-table-stats span,
+.data-kind,
+.nullable-badge,
+.catalog-marker {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid #343941;
+  border-radius: 3px;
+  background: #171a1e;
+  color: #b8bec6;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+#catalogColumnsWrap {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+#catalogColumnsWrap th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.catalog-columns-table {
+  min-width: 1080px;
+}
+
+.catalog-columns-table th:first-child,
+.catalog-columns-table td:first-child {
+  width: 56px;
+  padding-right: 8px;
+  padding-left: 14px;
+}
+
+.catalog-columns-table th:nth-child(2) { width: 230px; }
+.catalog-columns-table th:nth-child(3) { width: 230px; }
+.catalog-columns-table th:nth-child(4) { width: 135px; }
+.catalog-columns-table th:nth-child(5) { width: 92px; }
+.catalog-columns-table th:nth-child(6) { width: 170px; }
+
+.catalog-position {
+  color: #777e88;
+  font-size: 11px;
+}
+
+.database-type {
+  color: #8fd7ff;
+  font-size: 12px;
+}
+
+.nullable-badge.nullable {
+  border-color: #715a2d;
+  color: #f3c86c;
+}
+
+.nullable-badge.required {
+  border-color: #285844;
+  color: #70d9ac;
+}
+
+.catalog-markers {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.catalog-marker.primary {
+  border-color: #7b3237;
+  color: #ff8388;
+}
+
 #metabasePage {
   display: flex;
   flex: 1;
@@ -1523,9 +1809,58 @@ tbody tr:hover {
     padding-top: 24px;
   }
 
+  #catalogPage,
   #datasetsPage,
   #metabasePage {
     padding-bottom: 24px;
+  }
+
+  .catalog-toolbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .catalog-toolbar .search-field {
+    width: 100%;
+    max-width: none;
+  }
+
+  .catalog-schema-filter {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .catalog-schema-filter select {
+    width: 100%;
+  }
+
+  .catalog-toolbar .count-label {
+    align-self: center;
+    margin-left: 0;
+  }
+
+  .catalog-explorer {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(150px, 38%) minmax(0, 1fr);
+  }
+
+  .catalog-table-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .catalog-structure {
+    padding: 14px 10px;
+  }
+
+  .catalog-table-header {
+    min-height: 84px;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .catalog-table-header h2 {
+    font-size: 18px;
   }
 
   .metabase-toolbar {

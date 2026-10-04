@@ -2,6 +2,9 @@ const state = {
   csrfToken: "",
   currentUser: null,
   users: [],
+  catalogTables: [],
+  catalogDatabases: [],
+  selectedCatalogTableId: null,
   datasets: [],
   databases: [],
   deleteTarget: null,
@@ -27,6 +30,23 @@ const elements = {
   usersTable: document.querySelector("#usersTable"),
   userCount: document.querySelector("#userCount"),
   userSearch: document.querySelector("#userSearch"),
+  catalogPage: document.querySelector("#catalogPage"),
+  catalogSearch: document.querySelector("#catalogSearch"),
+  catalogSchema: document.querySelector("#catalogSchema"),
+  catalogCount: document.querySelector("#catalogCount"),
+  catalogTableCount: document.querySelector("#catalogTableCount"),
+  catalogTableList: document.querySelector("#catalogTableList"),
+  catalogTableHeader: document.querySelector("#catalogTableHeader"),
+  catalogDatabaseName: document.querySelector("#catalogDatabaseName"),
+  catalogSchemaName: document.querySelector("#catalogSchemaName"),
+  catalogTableName: document.querySelector("#catalogTableName"),
+  catalogTableDescription: document.querySelector("#catalogTableDescription"),
+  catalogColumnCount: document.querySelector("#catalogColumnCount"),
+  catalogRowCount: document.querySelector("#catalogRowCount"),
+  catalogEmpty: document.querySelector("#catalogEmpty"),
+  catalogColumnsWrap: document.querySelector("#catalogColumnsWrap"),
+  catalogColumnsTable: document.querySelector("#catalogColumnsTable"),
+  reloadCatalogButton: document.querySelector("#reloadCatalogButton"),
   datasetsTable: document.querySelector("#datasetsTable"),
   datasetsTableWrap: document.querySelector("#datasetsTableWrap"),
   datasetsEmpty: document.querySelector("#datasetsEmpty"),
@@ -184,6 +204,117 @@ async function loadUsers() {
   const payload = await api("/api/users");
   state.users = payload.users;
   renderUsers();
+}
+
+function renderCatalogSchemaOptions() {
+  const current = elements.catalogSchema.value;
+  const schemas = [...new Set(state.catalogTables.map((table) => table.schema))]
+    .sort((a, b) => a.localeCompare(b));
+  elements.catalogSchema.innerHTML = `
+    <option value="all">Barcha schemalar</option>
+    ${schemas.map((schema) => `<option value="${escapeHtml(schema)}">${escapeHtml(schema)}</option>`).join("")}
+  `;
+  elements.catalogSchema.value = schemas.includes(current) ? current : "all";
+}
+
+function catalogFieldMarkers(field) {
+  const markers = [];
+  if (field.primary_key) markers.push('<span class="catalog-marker primary">PK</span>');
+  if (field.semantic_label && field.semantic_label !== "Asosiy kalit") {
+    markers.push(`<span class="catalog-marker">${escapeHtml(field.semantic_label)}</span>`);
+  }
+  if (field.indexed) markers.push('<span class="catalog-marker">Index</span>');
+  return markers.join("") || '<span class="muted-value">-</span>';
+}
+
+function renderCatalogStructure(table) {
+  const hasTable = Boolean(table);
+  elements.catalogTableHeader.hidden = !hasTable;
+  elements.catalogEmpty.hidden = hasTable;
+  elements.catalogColumnsWrap.hidden = !hasTable;
+  if (!table) {
+    elements.catalogColumnsTable.innerHTML = "";
+    return;
+  }
+  elements.catalogDatabaseName.textContent = table.database_name;
+  elements.catalogSchemaName.textContent = table.schema;
+  elements.catalogTableName.textContent = table.name;
+  elements.catalogTableDescription.textContent = table.description;
+  elements.catalogTableDescription.hidden = !table.description;
+  elements.catalogColumnCount.textContent = `${table.columns.length} ta ustun`;
+  if (Number.isFinite(table.estimated_row_count)) {
+    elements.catalogRowCount.textContent = `~${new Intl.NumberFormat("uz-UZ").format(table.estimated_row_count)} qator`;
+    elements.catalogRowCount.hidden = false;
+  } else {
+    elements.catalogRowCount.hidden = true;
+  }
+  elements.catalogColumnsTable.innerHTML = table.columns.map((field, index) => `
+    <tr>
+      <td><span class="catalog-position">${index + 1}</span></td>
+      <td><div class="catalog-column-name"><strong>${escapeHtml(field.name)}</strong>${field.display_name !== field.name ? `<small>${escapeHtml(field.display_name)}</small>` : ""}</div></td>
+      <td><code class="database-type">${escapeHtml(field.database_type)}</code></td>
+      <td><span class="data-kind">${escapeHtml(field.data_kind)}</span></td>
+      <td><span class="nullable-badge ${field.nullable ? "nullable" : "required"}">${field.nullable ? "Ha" : "Yo'q"}</span></td>
+      <td><div class="catalog-markers">${catalogFieldMarkers(field)}</div></td>
+      <td>${field.description ? escapeHtml(field.description) : '<span class="muted-value">-</span>'}</td>
+    </tr>
+  `).join("");
+  elements.catalogColumnsWrap.scrollTop = 0;
+  elements.catalogColumnsWrap.scrollLeft = 0;
+}
+
+function renderCatalog() {
+  const query = elements.catalogSearch.value.trim().toLocaleLowerCase("uz");
+  const schema = elements.catalogSchema.value;
+  const filtered = state.catalogTables.filter((table) => {
+    if (schema !== "all" && table.schema !== schema) return false;
+    if (!query) return true;
+    const tableText = `${table.database_name} ${table.schema} ${table.name} ${table.display_name} ${table.description}`.toLocaleLowerCase("uz");
+    if (tableText.includes(query)) return true;
+    return table.columns.some((field) => `${field.name} ${field.display_name} ${field.database_type} ${field.data_kind} ${field.semantic_label || ""}`.toLocaleLowerCase("uz").includes(query));
+  });
+  const visibleIds = new Set(filtered.map((table) => table.id));
+  if (!visibleIds.has(state.selectedCatalogTableId)) {
+    state.selectedCatalogTableId = filtered[0]?.id ?? null;
+  }
+  const groups = new Map();
+  filtered.forEach((table) => {
+    const key = `${table.database_name} / ${table.schema}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(table);
+  });
+  elements.catalogCount.textContent = `${filtered.length} ta table · ${filtered.reduce((sum, table) => sum + table.columns.length, 0)} ta ustun`;
+  elements.catalogTableCount.textContent = String(filtered.length);
+  elements.catalogTableList.innerHTML = filtered.length ? [...groups.entries()].map(([group, tables]) => `
+    <section class="catalog-table-group">
+      <h3>${escapeHtml(group)}</h3>
+      ${tables.map((table) => `
+        <button class="catalog-table-item${table.id === state.selectedCatalogTableId ? " active" : ""}" type="button" data-catalog-table="${table.id}" title="${escapeHtml(table.schema)}.${escapeHtml(table.name)}">
+          ${icon("table")}
+          <span><strong>${escapeHtml(table.name)}</strong><small>${table.columns.length} ta ustun</small></span>
+        </button>
+      `).join("")}
+    </section>
+  `).join("") : '<div class="catalog-list-empty">Table topilmadi</div>';
+  renderCatalogStructure(state.catalogTables.find((table) => table.id === state.selectedCatalogTableId));
+}
+
+async function loadClickHouseCatalog() {
+  elements.reloadCatalogButton.disabled = true;
+  elements.reloadCatalogButton.classList.add("loading");
+  try {
+    const payload = await api("/api/clickhouse/catalog");
+    state.catalogTables = payload.tables || [];
+    state.catalogDatabases = payload.databases || [];
+    if (!state.catalogTables.some((table) => table.id === state.selectedCatalogTableId)) {
+      state.selectedCatalogTableId = state.catalogTables[0]?.id ?? null;
+    }
+    renderCatalogSchemaOptions();
+    renderCatalog();
+  } finally {
+    elements.reloadCatalogButton.disabled = false;
+    elements.reloadCatalogButton.classList.remove("loading");
+  }
 }
 
 function renderDatasets() {
@@ -643,6 +774,22 @@ document.querySelector("#cancelDelete").addEventListener("click", () => elements
 document.querySelector("#closeDatasetCreate").addEventListener("click", () => elements.datasetCreateDialog.close());
 document.querySelector("#cancelDatasetCreate").addEventListener("click", () => elements.datasetCreateDialog.close());
 elements.userSearch.addEventListener("input", renderUsers);
+elements.catalogSearch.addEventListener("input", renderCatalog);
+elements.catalogSchema.addEventListener("change", renderCatalog);
+elements.reloadCatalogButton.addEventListener("click", async () => {
+  try {
+    await loadClickHouseCatalog();
+    showToast("Ma'lumotlar katalogi yangilandi");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+elements.catalogTableList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-catalog-table]");
+  if (!button) return;
+  state.selectedCatalogTableId = Number(button.dataset.catalogTable);
+  renderCatalog();
+});
 elements.datasetSearch.addEventListener("input", renderDatasets);
 elements.metabaseSearch.addEventListener("input", renderMetabaseQueries);
 elements.syncDatasetsButton.addEventListener("click", syncDatasets);
@@ -992,10 +1139,12 @@ document.querySelectorAll(".nav-item").forEach((button) => {
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
     const page = button.dataset.page;
     document.querySelector("#usersPage").hidden = page !== "users";
+    elements.catalogPage.hidden = page !== "catalog";
     document.querySelector("#datasetsPage").hidden = page !== "datasets";
     elements.metabasePage.hidden = page !== "metabase";
     document.querySelector("#pageTitle").textContent = {
       users: "Foydalanuvchilar",
+      catalog: "Ma'lumotlar katalogi",
       datasets: "Superset datasetlar",
       metabase: "Metabase querylar",
     }[page];
@@ -1005,6 +1154,7 @@ document.querySelectorAll(".nav-item").forEach((button) => {
     elements.sidebar.classList.remove("open");
     try {
       if (page === "datasets") await loadDatasets();
+      if (page === "catalog") await loadClickHouseCatalog();
       if (page === "metabase") await loadMetabaseQueries();
     } catch (error) {
       showToast(error.message);

@@ -42,6 +42,10 @@
           <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#users"></use></svg>
           <span>Foydalanuvchilar</span>
         </button>
+        <button class="nav-item" type="button" data-page="catalog" title="Ma'lumotlar katalogi">
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#table"></use></svg>
+          <span>Ma'lumotlar katalogi</span>
+        </button>
         <button class="nav-item" type="button" data-page="datasets" title="Superset datasetlar">
           <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#database"></use></svg>
           <span>Superset datasetlar</span>
@@ -110,6 +114,72 @@
             </thead>
             <tbody id="usersTable"></tbody>
           </table>
+        </div>
+      </section>
+
+      <section id="catalogPage" class="content-section" hidden>
+        <div class="catalog-toolbar">
+          <label class="search-field">
+            <svg class="icon search-icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#search"></use></svg>
+            <input id="catalogSearch" type="search" placeholder="Table yoki ustunni qidirish" aria-label="Table yoki ustunni qidirish">
+          </label>
+          <label class="catalog-schema-filter">
+            <span class="sr-only">Schema</span>
+            <select id="catalogSchema" aria-label="Schema bo'yicha filtrlash">
+              <option value="all">Barcha schemalar</option>
+            </select>
+          </label>
+          <span id="catalogCount" class="count-label"></span>
+          <button id="reloadCatalogButton" class="icon-button" type="button" title="Katalogni yangilash" aria-label="Katalogni yangilash">
+            <svg class="icon refresh-icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#refresh"></use></svg>
+          </button>
+        </div>
+        <div class="catalog-explorer">
+          <aside class="catalog-table-pane" aria-label="ClickHouse tablelari">
+            <div class="catalog-pane-heading">
+              <span>Tablelar</span>
+              <span id="catalogTableCount"></span>
+            </div>
+            <div id="catalogTableList" class="catalog-table-list"></div>
+          </aside>
+          <div class="catalog-structure">
+            <header id="catalogTableHeader" class="catalog-table-header" hidden>
+              <div>
+                <div class="catalog-table-path">
+                  <span id="catalogDatabaseName"></span>
+                  <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#chevron-right"></use></svg>
+                  <span id="catalogSchemaName"></span>
+                </div>
+                <h2 id="catalogTableName"></h2>
+                <p id="catalogTableDescription" hidden></p>
+              </div>
+              <div class="catalog-table-stats">
+                <span id="catalogColumnCount"></span>
+                <span id="catalogRowCount"></span>
+              </div>
+            </header>
+            <div id="catalogEmpty" class="empty-state compact-empty">
+              <svg class="empty-database" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#table"></use></svg>
+              <h2>Tableni tanlang</h2>
+              <p>Ustunlar strukturasi shu yerda ko'rinadi.</p>
+            </div>
+            <div id="catalogColumnsWrap" class="table-wrap" hidden>
+              <table class="catalog-columns-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Ustun nomi</th>
+                    <th>ClickHouse turi</th>
+                    <th>Ma'lumot turi</th>
+                    <th>Nullable</th>
+                    <th>Belgi</th>
+                    <th>Tavsif</th>
+                  </tr>
+                </thead>
+                <tbody id="catalogColumnsTable"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
 
