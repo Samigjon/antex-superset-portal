@@ -27,6 +27,7 @@ class ReviewsTest(unittest.TestCase):
 
     def setUp(self):
         with self.app.app_context():
+            self.portal.get_db().execute('DELETE FROM report_review_preferences')
             self.portal.get_db().execute('DELETE FROM report_review_events')
             self.portal.get_db().execute('DELETE FROM report_reviews')
             self.portal.get_db().commit()
@@ -190,6 +191,50 @@ class ReviewsTest(unittest.TestCase):
         self.dashboard['published'] = False
         self.assertEqual(self.post('/api/report-reviews/5/preview', {'company_id': 290}).status_code, 404)
         self.assertEqual(self.client.get('/api/report-reviews/5/events').status_code, 404)
+
+    def test_section_preferences_persist_per_admin_without_superset_changes(self):
+        path = '/api/report-reviews/preferences'
+        self.assertEqual(self.client.get(path).json, {'order': [], 'collapsed': []})
+        self.assertEqual(self.app.test_client().get(path).status_code, 401)
+        self.assertEqual(self.client.put(path, json={'order': [7], 'collapsed': []}).status_code, 403)
+        payload = {'order': [7, 4, 2], 'collapsed': [4]}
+        response = self.client.put(path, json=payload, headers={'X-CSRF-Token': 'csrf-test'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.get(path).json, payload)
+        with self.app.app_context():
+            db = self.portal.get_db()
+            uid = db.execute("INSERT INTO users (username,full_name,password_hash,role,is_active,created_at,updated_at) "
+                             "VALUES ('second-admin','Second','test','admin',1,'now','now')").lastrowid
+            db.commit()
+        try:
+            with self.client.session_transaction() as session:
+                session['user_id'] = uid
+            self.assertEqual(self.client.get(path).json, {'order': [], 'collapsed': []})
+        finally:
+            with self.app.app_context():
+                self.portal.get_db().execute('DELETE FROM users WHERE id=?', (uid,))
+                self.portal.get_db().commit()
+        self.assertEqual(self.calls, [])
+
+    def test_section_preferences_validate_input_and_reject_viewers(self):
+        path = '/api/report-reviews/preferences'
+        for payload in (None, [], {}, {'order': [1, 1], 'collapsed': []},
+                        {'order': [True], 'collapsed': []}, {'order': [-1], 'collapsed': []},
+                        {'order': [1], 'collapsed': ['1']}, {'order': list(range(1, 502)), 'collapsed': []}):
+            response = self.client.put(path, data=json.dumps(payload), content_type='application/json',
+                                       headers={'X-CSRF-Token': 'csrf-test'})
+            self.assertEqual(response.status_code, 400, payload)
+        with self.app.app_context():
+            self.portal.get_db().execute("UPDATE users SET role='viewer' WHERE id=1")
+            self.portal.get_db().commit()
+        try:
+            self.assertEqual(self.client.get(path).status_code, 403)
+            self.assertEqual(self.client.put(path, json={'order': [], 'collapsed': []},
+                                            headers={'X-CSRF-Token': 'csrf-test'}).status_code, 403)
+        finally:
+            with self.app.app_context():
+                self.portal.get_db().execute("UPDATE users SET role='admin' WHERE id=1")
+                self.portal.get_db().commit()
 
 
 if __name__ == '__main__':

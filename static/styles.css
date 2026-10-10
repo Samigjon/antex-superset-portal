@@ -25,6 +25,25 @@
 .review-tabs button[aria-selected="true"] { color:var(--text); border-bottom-color:var(--red); }
 .review-tabs button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 .review-list { min-width:0; max-height:75vh; overflow:auto; border-right:1px solid var(--line); padding-right:10px; }
+.review-sidebar { min-width:0; }
+.review-save-order { width:100%; margin-top:10px; font-size:12px; }
+.review-group { border-bottom:1px solid var(--line); }
+.review-group-header { display:flex; align-items:center; gap:2px; padding:8px 0; }
+.review-group-toggle { display:flex; align-items:center; gap:5px; flex:1; min-width:0; padding:5px 0; border:0; background:transparent; color:var(--text); text-align:left; font:inherit; font-size:12px; }
+.review-group-name { flex:1; min-width:0; overflow-wrap:anywhere; }
+.review-group-count { color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
+.review-group-toggle .icon { width:14px; height:14px; flex:none; }
+.review-group-toggle[aria-expanded="true"] .icon { transform:rotate(90deg); }
+.review-group-tools { display:flex; flex:none; gap:1px; }
+.review-group-tools .icon-button { width:24px; height:28px; min-width:24px; padding:4px; border:0; }
+.review-group-tools .icon { width:14px; height:14px; }
+.review-group-up .icon { transform:rotate(90deg); }
+.review-group-down .icon { transform:rotate(90deg); }
+.review-group-drag { cursor:grab; }
+.review-group-drag:active { cursor:grabbing; }
+.review-group.drop-target { outline:1px solid var(--focus); outline-offset:-1px; }
+.review-group .review-item { padding:10px 8px 10px 20px; }
+.review-group .review-item:last-child { border-bottom:0; }
 .review-item { display:grid; text-align:left; width:100%; gap:6px; padding:12px; background:transparent; color:var(--text); border:0; border-bottom:1px solid var(--line); }
 .review-item strong { overflow-wrap:anywhere; font-size:13px; }
 .review-item span { font-size:12px; color:var(--muted); }

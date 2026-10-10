@@ -111,7 +111,13 @@
         </div>
         <p id="reviewError" class="form-error" role="alert"></p>
         <div class="review-layout">
-          <aside id="reviewList" class="review-list" role="tabpanel" aria-labelledby="reviewPendingTab"></aside>
+          <aside class="review-sidebar">
+            <div id="reviewList" class="review-list" role="tabpanel" aria-labelledby="reviewPendingTab"></div>
+            <button id="saveReviewOrder" class="secondary-button compact review-save-order" type="button" hidden>
+              <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#save"></use></svg>
+              Сохранить порядок
+            </button>
+          </aside>
           <div class="review-workspace">
             <div class="review-heading"><h2 id="reviewTitle">Выберите отчёт</h2><span id="reviewStatus"></span></div>
             <div id="reviewEmbed" class="review-embed"></div>

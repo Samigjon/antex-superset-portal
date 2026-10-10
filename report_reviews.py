@@ -38,6 +38,11 @@ def register_reviews(app, portal):
                 note TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS report_review_preferences (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id),
+                section_order TEXT NOT NULL DEFAULT '[]',
+                collapsed_sections TEXT NOT NULL DEFAULT '[]'
+            );
         ''')
         db_get().commit()
 
@@ -166,6 +171,28 @@ def register_reviews(app, portal):
     def review_list():
         items = [dict(r) for r in db_get().execute('SELECT * FROM report_reviews ORDER BY updated_at DESC')]
         return jsonify({'reviews': items})
+
+    @app.route('/api/report-reviews/preferences', methods=['GET', 'PUT'])
+    @guarded
+    def review_preferences():
+        uid = g.current_user['id']
+        if request.method == 'PUT':
+            payload = request.get_json()
+            if not isinstance(payload, dict):
+                return jsonify({'error': 'Noto\u2018g\u2018ri sozlamalar'}), 400
+            for key in ('order', 'collapsed'):
+                values = payload.get(key)
+                if (not isinstance(values, list) or len(values) > 500 or
+                        any(type(v) is not int or v <= 0 for v in values) or len(set(values)) != len(values)):
+                    return jsonify({'error': 'Noto\u2018g\u2018ri bo\u2018limlar ro\u2018yxati'}), 400
+            db_get().execute('INSERT INTO report_review_preferences (user_id,section_order,collapsed_sections) '
+                             'VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET '
+                             'section_order=excluded.section_order,collapsed_sections=excluded.collapsed_sections',
+                             (uid, json.dumps(payload['order']), json.dumps(payload['collapsed'])))
+            db_get().commit()
+        item = db_get().execute('SELECT * FROM report_review_preferences WHERE user_id=?', (uid,)).fetchone()
+        return jsonify({'order': json.loads(item['section_order']) if item else [],
+                        'collapsed': json.loads(item['collapsed_sections']) if item else []})
 
     @app.get('/api/report-reviews/published')
     @guarded

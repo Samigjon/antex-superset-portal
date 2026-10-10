@@ -2,7 +2,9 @@
   const $ = (id) => document.getElementById(id);
   const statuses = { review: 'На проверке', changes: 'Нужны исправления', approved: 'Одобрен', published: 'Опубликован' };
   let reviews = [], publishedReviews = [], tab = 'pending', selected = null, mounted = null, version = null, generation = 0, epoch = 0, busy = false;
+  let sectionOrder = [], collapsed = new Set(), preferencesLoaded = false, preferencesDirty = false, savingOrder = false, draggedSection = null;
   const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="/static/icons.svg#${name}"></use></svg>`;
 
   function close() {
     generation++;
@@ -14,6 +16,8 @@
 
   function reset() {
     epoch++; close(); selected = null; reviews = []; publishedReviews = []; tab = 'pending'; busy = false;
+    sectionOrder = []; collapsed = new Set(); preferencesLoaded = false; preferencesDirty = false; savingOrder = false; draggedSection = null;
+    $('saveReviewOrder').hidden = true;
     for (const id of ['reviewCompany','reviewCandidate','reviewTag','reviewList','reviewEvents']) $(id).replaceChildren();
     $('reviewNote').value = '';
     $('reviewError').textContent = '';
@@ -31,6 +35,8 @@
     $('reviewActions').hidden = !selected || published;
     $('reviewCandidateLabel').hidden = tab === 'published';
     $('registerReview').hidden = tab === 'published';
+    $('saveReviewOrder').hidden = tab !== 'published' || !publishedReviews.length;
+    $('saveReviewOrder').disabled = busy || savingOrder || !preferencesDirty;
     for (const button of $('reviewTabs').querySelectorAll('[role="tab"]')) {
       const active = button.dataset.reviewTab === tab;
       button.setAttribute('aria-selected', String(active));
@@ -108,6 +114,56 @@
     return tab === 'published' ? publishedReviews : reviews.filter((r) => r.status !== 'published' && !publishedIds.has(r.dashboard_id));
   }
 
+  function sections() {
+    const groups = new Map();
+    for (const report of publishedReviews) {
+      for (const tag of report.tags || []) {
+        const id = Number(tag.id);
+        if (!groups.has(id)) groups.set(id, { id, name: tag.name, reports: [] });
+        groups.get(id).reports.push(report);
+      }
+    }
+    const missing = [...groups.keys()].filter((id) => !sectionOrder.includes(id))
+      .sort((a, b) => groups.get(a).name.localeCompare(groups.get(b).name, 'ru') || a - b);
+    return [...sectionOrder.filter((id) => groups.has(id)), ...missing].map((id) => groups.get(id));
+  }
+
+  function reportButton(report) {
+    return `<button type="button" class="review-item ${report.dashboard_id === selected?.dashboard_id ? 'selected' : ''}" data-id="${report.dashboard_id}"><strong>${escape(report.title)}</strong><span>${escape(statuses[report.status])}${report.tags?.length ? ' · ' + escape(report.tags.map((t) => t.name).join(', ')) : ''}</span></button>`;
+  }
+
+  function groupedReports() {
+    const groups = sections();
+    return groups.map((group, index) => {
+      const open = !collapsed.has(group.id);
+      const name = escape(group.name);
+      return `<section class="review-group" data-section="${group.id}">
+        <div class="review-group-header">
+          <button class="review-group-toggle" type="button" data-toggle-section="${group.id}" aria-expanded="${open}" aria-controls="reviewSection${group.id}">
+            ${icon('chevron-right')}<span class="review-group-name">${name}</span><span class="review-group-count">${group.reports.length}</span>
+          </button>
+          <div class="review-group-tools">
+            <button type="button" class="icon-button review-group-up" data-move-section="${group.id}" data-direction="-1" title="Выше: ${name}" aria-label="Выше: ${name}" ${index === 0 ? 'disabled' : ''}>${icon('chevron-left')}</button>
+            <button type="button" class="icon-button review-group-down" data-move-section="${group.id}" data-direction="1" title="Ниже: ${name}" aria-label="Ниже: ${name}" ${index === groups.length - 1 ? 'disabled' : ''}>${icon('chevron-right')}</button>
+            <button type="button" class="icon-button review-group-drag" draggable="true" data-drag-section="${group.id}" title="Перетащить раздел: ${name}" aria-label="Перетащить раздел: ${name}">${icon('menu')}</button>
+          </div>
+        </div>
+        <div id="reviewSection${group.id}" ${open ? '' : 'hidden'}>${group.reports.map(reportButton).join('')}</div>
+      </section>`;
+    }).join('');
+  }
+
+  function moveSection(id, target) {
+    const order = sections().map((group) => group.id);
+    const from = order.indexOf(id);
+    if (from < 0 || target < 0 || target >= order.length || from === target) return;
+    order.splice(from, 1);
+    order.splice(target, 0, id);
+    sectionOrder = order;
+    preferencesDirty = true;
+    render();
+  }
+
   function render() {
     const visible = visibleReviews();
     if (selected) {
@@ -115,7 +171,9 @@
       if (!selected) { close(); $('reviewEvents').replaceChildren(); }
     }
     const empty = tab === 'published' ? 'Нет опубликованных отчётов' : 'Нет отчётов на проверке';
-    $('reviewList').innerHTML = visible.length ? visible.map((r) => `<button type="button" class="review-item ${r.dashboard_id === selected?.dashboard_id ? 'selected' : ''}" data-id="${r.dashboard_id}"><strong>${escape(r.title)}</strong><span>${escape(statuses[r.status])}${r.tags?.length ? ' · ' + escape(r.tags.map((t) => t.name).join(', ')) : ''}</span></button>`).join('') : `<p>${empty}</p>`;
+    const scroll = $('reviewList').scrollTop;
+    $('reviewList').innerHTML = visible.length ? (tab === 'published' ? groupedReports() : visible.map(reportButton).join('')) : `<p>${empty}</p>`;
+    $('reviewList').scrollTop = scroll;
     $('reviewTitle').textContent = selected?.title || 'Выберите отчёт';
     $('reviewStatus').textContent = selected ? statuses[selected.status] : '';
     controls();
@@ -135,6 +193,13 @@
     const run = epoch;
     $('reviewError').textContent = '';
     try {
+      if (!preferencesLoaded) {
+        const preferences = await api('/api/report-reviews/preferences');
+        if (run !== epoch) return;
+        sectionOrder = preferences.order;
+        collapsed = new Set(preferences.collapsed);
+        preferencesLoaded = true;
+      }
       const options = await api('/api/report-reviews/options');
       if (run !== epoch) return;
       const company = $('reviewCompany').value;
@@ -152,11 +217,64 @@
   }
 
   $('reviewList').addEventListener('click', async (event) => {
+    const toggle = event.target.closest('[data-toggle-section]');
+    if (toggle) {
+      const id = Number(toggle.dataset.toggleSection);
+      if (collapsed.has(id)) collapsed.delete(id); else collapsed.add(id);
+      preferencesDirty = true; render();
+      $('reviewList').querySelector(`[data-toggle-section="${id}"]`)?.focus({preventScroll:true});
+      return;
+    }
+    const move = event.target.closest('[data-move-section]');
+    if (move) {
+      const id = Number(move.dataset.moveSection);
+      moveSection(id, sections().findIndex((group) => group.id === id) + Number(move.dataset.direction));
+      $('reviewList').querySelector(`[data-toggle-section="${id}"]`)?.focus({preventScroll:true});
+      return;
+    }
     const button = event.target.closest('[data-id]');
     if (!button || busy) return;
     selected = visibleReviews().find((r) => r.dashboard_id === Number(button.dataset.id));
     $('reviewNote').value = '';
     render(); await events(); await preview();
+  });
+  $('reviewList').addEventListener('dragstart', (event) => {
+    const handle = event.target.closest('[data-drag-section]');
+    if (!handle) return;
+    draggedSection = Number(handle.dataset.dragSection);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(draggedSection));
+  });
+  function clearDropTargets() {
+    $('reviewList').querySelectorAll('.drop-target').forEach((element) => element.classList.remove('drop-target'));
+  }
+  $('reviewList').addEventListener('dragover', (event) => {
+    const group = event.target.closest('[data-section]');
+    if (!group || draggedSection === null) return;
+    event.preventDefault(); event.dataTransfer.dropEffect = 'move';
+    clearDropTargets(); group.classList.add('drop-target');
+  });
+  $('reviewList').addEventListener('drop', (event) => {
+    const group = event.target.closest('[data-section]');
+    if (!group || draggedSection === null) return;
+    event.preventDefault();
+    moveSection(draggedSection, sections().findIndex((item) => item.id === Number(group.dataset.section)));
+    draggedSection = null; clearDropTargets();
+  });
+  $('reviewList').addEventListener('dragend', () => { draggedSection = null; clearDropTargets(); });
+  $('saveReviewOrder').addEventListener('click', async () => {
+    if (savingOrder || !preferencesDirty) return;
+    const run = epoch;
+    const order = sections().map((group) => group.id);
+    const payload = {order, collapsed:order.filter((id) => collapsed.has(id))};
+    savingOrder = true; controls(); $('reviewError').textContent = '';
+    try {
+      await api('/api/report-reviews/preferences', {method:'PUT', body:JSON.stringify(payload)});
+      if (run !== epoch) return;
+      const current = sections().map((group) => group.id);
+      preferencesDirty = JSON.stringify(payload) !== JSON.stringify({order:current, collapsed:current.filter((id) => collapsed.has(id))});
+    } catch (error) { if (run === epoch) $('reviewError').textContent = error.message; }
+    finally { if (run === epoch) { savingOrder = false; controls(); } }
   });
   function switchTab(next) {
     if (busy || next === tab) return;
