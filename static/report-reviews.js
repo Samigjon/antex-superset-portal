@@ -4,11 +4,15 @@
   let reviews = [], publishedReviews = [], tab = 'pending', selected = null, mounted = null, version = null, generation = 0, epoch = 0, busy = false;
   let sectionOrder = [], collapsed = new Set(), preferencesLoaded = false, preferencesDirty = false, savingOrder = false, draggedSection = null;
   let companies = [];
+  let fitTimer = null, fitObserver = null;
   const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="/static/icons.svg#${name}"></use></svg>`;
 
   function close() {
     generation++;
+    clearTimeout(fitTimer);
+    fitObserver?.disconnect();
+    fitObserver = null;
     mounted?.unmount();
     mounted = null;
     version = null;
@@ -35,6 +39,7 @@
   function controls() {
     const published = selected?.status === 'published';
     $('reviewActions').hidden = !selected || published;
+    $('reviewDetails').hidden = !selected;
     $('reviewCandidateLabel').hidden = tab === 'published';
     $('registerReview').hidden = tab === 'published';
     $('saveReviewOrder').hidden = tab !== 'published' || !publishedReviews.length;
@@ -102,13 +107,42 @@
           if (fresh.version !== version) { version = null; controls(); }
           return fresh.token;
         },
-        dashboardUiConfig: { hideTitle: true, hideChartControls: true, filters: { visible:true, expanded:true } },
+        dashboardUiConfig: { hideTitle: true, hideChartControls: true, filters: { visible:true, expanded:false } },
         referrerPolicy: 'strict-origin-when-cross-origin',
       });
       if (run !== generation) { instance.unmount(); return; }
       mounted = instance;
+      fitPreview(instance, run);
     } catch (error) { if (run === generation) $('reviewError').textContent = error.message; }
     controls();
+  }
+
+  function fitPreview(instance, run) {
+    const host = $('reviewEmbed');
+    const frame = host.querySelector('iframe');
+    let scale = 1;
+    const resize = () => {
+      frame.style.width = `${100 / scale}%`;
+      frame.style.height = `${100 / scale}%`;
+      frame.style.transform = `scale(${scale})`;
+    };
+    // Size the cross-origin document through the SDK, without clipping its totals.
+    const fit = async () => {
+      if (run !== generation) return;
+      try {
+        const size = await instance.getScrollSize();
+        if (run !== generation) return;
+        const height = Number(size.height);
+        if (host.clientHeight > 0 && height * scale > host.clientHeight + 2) {
+          scale = Math.min(scale, host.clientHeight / (height + 2));
+          resize();
+        }
+      } catch (_) { /* The iframe can be reloading or closing. */ }
+      if (run === generation) fitTimer = setTimeout(fit, 1000);
+    };
+    fitObserver = new ResizeObserver(() => { scale = 1; resize(); });
+    fitObserver.observe(host);
+    fit();
   }
 
   function visibleReviews() {

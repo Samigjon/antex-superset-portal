@@ -69,6 +69,46 @@
 .review-events p { white-space:pre-wrap; overflow-wrap:anywhere; margin:5px 0; }
 @media(max-width:900px) { .review-layout { grid-template-columns:minmax(0,1fr); } .review-sidebar { max-height:none; } .review-list { max-height:180px; border-right:0; } .review-comment { flex-wrap:wrap; } .review-toolbar label { min-width:0; width:100%; max-width:none; } }
 
+#reviewsPage { display:flex; flex:1; flex-direction:column; min-height:0; overflow:hidden; padding:12px 20px; }
+#reviewsPage[hidden] { display:none; }
+.workspace:has(#reviewsPage:not([hidden])) .topbar { min-height:72px; padding-top:12px; padding-bottom:12px; }
+#reviewsPage .review-tabs { flex:none; margin-bottom:8px; }
+#reviewsPage > .review-toolbar { flex:none; margin-bottom:8px; align-items:center; }
+#reviewsPage .review-company-picker { width:640px; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+#reviewsPage .review-company-picker > label { grid-column:1 / -1; }
+#reviewsPage .review-company-status { grid-column:1 / -1; min-height:0; }
+#reviewError:empty { display:none; }
+#reviewsPage .review-layout { flex:1; min-height:0; overflow:hidden; }
+#reviewsPage .review-sidebar { min-height:0; max-height:none; overflow:hidden; }
+#reviewsPage .review-list { max-height:none; overscroll-behavior:contain; }
+#reviewsPage .review-workspace { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+#reviewsPage .review-heading { flex:none; margin-bottom:6px; }
+#reviewsPage .review-embed { flex:1; position:relative; min-height:0; height:auto; overflow:hidden; margin-bottom:0; }
+#reviewsPage .review-embed iframe { position:absolute; top:0; left:0; transform-origin:top left; }
+.review-details { flex:none; margin-top:6px; min-height:0; }
+.review-details summary { cursor:pointer; padding:6px 0; font-size:12px; color:var(--muted); }
+.review-details-content { max-height:180px; overflow:auto; overscroll-behavior:contain; padding:6px 4px; }
+.review-details .review-events { margin-top:6px; }
+@media(min-width:1100px) {
+  #reviewsPage { display:grid; grid-template-columns:auto minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr); column-gap:20px; }
+  #reviewsPage .review-tabs { grid-column:1; grid-row:1; align-self:end; }
+  #reviewsPage > .review-toolbar { grid-column:2; grid-row:1; justify-content:flex-end; }
+  #reviewsPage:has(#registerReview:not([hidden])) .review-company-picker { width:360px; }
+  #reviewError { grid-column:1 / -1; grid-row:2; }
+  #reviewsPage .review-layout { grid-column:1 / -1; grid-row:3; }
+}
+@media(max-width:900px) {
+  #reviewsPage .review-layout { grid-template-rows:minmax(70px, 18%) minmax(0,1fr); gap:8px; }
+  #reviewsPage .review-sidebar { flex-direction:row; gap:6px; }
+  #reviewsPage .review-list { flex:1; }
+  #reviewsPage .review-save-order { width:42px; margin-top:0; font-size:0; padding:8px; }
+  #reviewsPage .review-company-picker { width:100%; }
+  #reviewsPage > .review-toolbar { gap:6px; }
+  #reviewsPage .review-heading h2 { font-size:14px; }
+  #reviewsPage { padding:8px 12px; }
+  .review-details-content { max-height:140px; }
+}
+
 * {
   box-sizing: border-box;
 }
