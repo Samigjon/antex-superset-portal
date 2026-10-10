@@ -125,7 +125,7 @@ async function api(path, options = {}) {
 }
 
 function showLogin() {
-  window.reportReviews?.close();
+  window.reportReviews?.reset();
   state.csrfToken = "";
   state.currentUser = null;
   elements.appView.hidden = true;

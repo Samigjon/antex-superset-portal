@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const statuses = { review: 'На проверке', changes: 'Нужны исправления', approved: 'Одобрен', published: 'Опубликован' };
-  let reviews = [], selected = null, mounted = null, version = null, generation = 0, busy = false;
+  let reviews = [], selected = null, mounted = null, version = null, generation = 0, epoch = 0, busy = false;
   const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   function close() {
@@ -10,6 +10,20 @@
     mounted = null;
     version = null;
     $('reviewEmbed').replaceChildren();
+  }
+
+  function reset() {
+    epoch++; close(); selected = null; reviews = []; busy = false;
+    for (const id of ['reviewCompany','reviewCandidate','reviewTag','reviewList','reviewEvents']) $(id).replaceChildren();
+    $('reviewNote').value = '';
+    $('reviewError').textContent = '';
+    $('reviewsPage').hidden = true;
+    if ($('reviewsNav').classList.contains('active')) {
+      document.querySelectorAll('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.page === 'users'));
+      $('usersPage').hidden = false;
+      $('pageTitle').textContent = 'Foydalanuvchilar';
+      $('addUserButton').hidden = false;
+    }
   }
 
   function controls() {
@@ -26,6 +40,7 @@
 
   async function act(action) {
     if (!selected || busy) return;
+    const run = epoch;
     if (action === 'publish' && !confirm(`Опубликовать «${selected.title}» в выбранном разделе для клиентов?`)) return;
     busy = true; controls(); $('reviewError').textContent = '';
     try {
@@ -33,6 +48,7 @@
         action, note: $('reviewNote').value, company_id: $('reviewCompany').value,
         version, tag_id: $('reviewTag').value,
       }) });
+      if (run !== epoch) return;
       selected = payload.review;
       $('reviewNote').value = '';
       await list(); await events();
@@ -41,9 +57,11 @@
   }
 
   async function events() {
+    if (!selected) return;
+    const run = epoch;
     const did = selected.dashboard_id;
     const result = await api(`/api/report-reviews/${did}/events`);
-    if (selected?.dashboard_id !== did) return;
+    if (run !== epoch || selected?.dashboard_id !== did) return;
     $('reviewEvents').innerHTML = result.events.map((e) => `<div><strong>${escape(e.actor)}</strong> · ${escape(e.action)} · ${escape(formatDate(e.created_at))}<p>${escape(e.note)}</p></div>`).join('');
   }
 
@@ -77,7 +95,10 @@
   }
 
   async function list() {
-    reviews = (await api('/api/report-reviews')).reviews;
+    const run = epoch;
+    const result = await api('/api/report-reviews');
+    if (run !== epoch) return;
+    reviews = result.reviews;
     if (selected) selected = reviews.find((r) => r.dashboard_id === selected.dashboard_id) || null;
     $('reviewList').innerHTML = reviews.length ? reviews.map((r) => `<button type="button" class="review-item ${r.dashboard_id === selected?.dashboard_id ? 'selected' : ''}" data-id="${r.dashboard_id}"><strong>${escape(r.title)}</strong><span>${escape(statuses[r.status])}</span></button>`).join('') : '<p>Нет отчётов на проверке</p>';
     $('reviewTitle').textContent = selected?.title || 'Выберите отчёт';
@@ -86,14 +107,17 @@
   }
 
   async function load() {
+    const run = epoch;
     $('reviewError').textContent = '';
     try {
       const options = await api('/api/report-reviews/options');
+      if (run !== epoch) return;
       const company = $('reviewCompany').value;
       $('reviewCompany').innerHTML = '<option value="">Выберите компанию</option>' + options.companies.map((c) => `<option value="${c.id}">${escape(c.name)} (#${c.id})</option>`).join('');
       if (options.companies.some((c) => String(c.id) === company)) $('reviewCompany').value = company;
       else if (options.companies.some((c) => c.id === 290)) $('reviewCompany').value = '290';
       await list();
+      if (run !== epoch) return;
       const ids = new Set(reviews.map((r) => r.dashboard_id));
       $('reviewCandidate').innerHTML = '<option value="">Выберите dashboard</option>' + options.dashboards.filter((d) => !ids.has(d.id)).map((d) => `<option value="${d.id}">${escape(d.title)} (#${d.id})</option>`).join('');
       $('reviewTag').innerHTML = '<option value="">Выберите раздел</option>' + options.tags.map((t) => `<option value="${t.id}">${escape(t.name)}</option>`).join('');
@@ -114,13 +138,16 @@
   $('refreshReviews').addEventListener('click', load);
   $('registerReview').addEventListener('click', async () => {
     if (busy || !$('reviewCandidate').value) return;
+    const run = epoch;
     busy = true; controls();
     try {
-      selected = (await api('/api/report-reviews', { method:'POST', body:JSON.stringify({dashboard_id:$('reviewCandidate').value}) })).review;
+      const result = await api('/api/report-reviews', { method:'POST', body:JSON.stringify({dashboard_id:$('reviewCandidate').value}) });
+      if (run !== epoch) return;
+      selected = result.review;
       await load();
     } catch (error) { $('reviewError').textContent = error.message; }
     finally { busy = false; controls(); }
   });
   for (const [id, action] of [['reviewTested','tested'],['reviewApprove','approve'],['reviewChanges','changes'],['reviewPublish','publish'],['reviewComment','comment']]) $(id).addEventListener('click', () => act(action));
-  window.reportReviews = { load, close };
+  window.reportReviews = { load, close, reset };
 })();
