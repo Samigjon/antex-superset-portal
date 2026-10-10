@@ -18,6 +18,7 @@
 .review-toolbar { display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:12px; }
 .review-toolbar label { display:grid; gap:5px; font-size:12px; min-width:160px; max-width:360px; }
 .review-toolbar select { width:100%; min-height:36px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:6px; }
+.review-toolbar .compact { width:auto; min-height:36px; font-size:13px; padding:8px 12px; gap:6px; overflow:visible; }
 .review-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:16px; }
 .review-list { min-width:0; max-height:75vh; overflow:auto; border-right:1px solid var(--line); padding-right:10px; }
 .review-item { display:grid; text-align:left; width:100%; gap:6px; padding:12px; background:transparent; color:var(--text); border:0; border-bottom:1px solid var(--line); }
