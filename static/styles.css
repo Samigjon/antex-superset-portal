@@ -25,8 +25,9 @@
 .review-tabs button[aria-selected="true"] { color:var(--text); border-bottom-color:var(--red); }
 .review-tabs button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 .review-list { min-width:0; max-height:75vh; overflow:auto; border-right:1px solid var(--line); padding-right:10px; }
-.review-sidebar { min-width:0; }
-.review-save-order { width:100%; margin-top:10px; font-size:12px; }
+.review-sidebar { min-width:0; display:flex; flex-direction:column; min-height:160px; max-height:calc(100vh - 320px); }
+.review-sidebar .review-list { min-height:0; flex:1; }
+.review-save-order { width:100%; flex:none; margin-top:10px; font-size:12px; }
 .review-group { border-bottom:1px solid var(--line); }
 .review-group-header { display:flex; align-items:center; gap:2px; padding:8px 0; }
 .review-group-toggle { display:flex; align-items:center; gap:5px; flex:1; min-width:0; padding:5px 0; border:0; background:transparent; color:var(--text); text-align:left; font:inherit; font-size:12px; }
@@ -60,7 +61,7 @@
 .review-events { font-size:12px; color:var(--muted); margin-top:16px; }
 .review-events > div { padding:8px 0; border-bottom:1px solid var(--line); }
 .review-events p { white-space:pre-wrap; overflow-wrap:anywhere; margin:5px 0; }
-@media(max-width:900px) { .review-layout { grid-template-columns:minmax(0,1fr); } .review-list { max-height:180px; border-right:0; } .review-comment { flex-wrap:wrap; } .review-toolbar label { min-width:0; width:100%; max-width:none; } }
+@media(max-width:900px) { .review-layout { grid-template-columns:minmax(0,1fr); } .review-sidebar { max-height:none; } .review-list { max-height:180px; border-right:0; } .review-comment { flex-wrap:wrap; } .review-toolbar label { min-width:0; width:100%; max-width:none; } }
 
 * {
   box-sizing: border-box;
