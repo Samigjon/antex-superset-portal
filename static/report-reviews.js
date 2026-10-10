@@ -3,6 +3,7 @@
   const statuses = { review: 'На проверке', changes: 'Нужны исправления', approved: 'Одобрен', published: 'Опубликован' };
   let reviews = [], publishedReviews = [], tab = 'pending', selected = null, mounted = null, version = null, generation = 0, epoch = 0, busy = false;
   let sectionOrder = [], collapsed = new Set(), preferencesLoaded = false, preferencesDirty = false, savingOrder = false, draggedSection = null;
+  let companies = [];
   const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="/static/icons.svg#${name}"></use></svg>`;
 
@@ -17,6 +18,7 @@
   function reset() {
     epoch++; close(); selected = null; reviews = []; publishedReviews = []; tab = 'pending'; busy = false;
     sectionOrder = []; collapsed = new Set(); preferencesLoaded = false; preferencesDirty = false; savingOrder = false; draggedSection = null;
+    companies = []; $('reviewCompanySearch').value = ''; $('reviewCompanySearchStatus').textContent = '';
     $('saveReviewOrder').hidden = true;
     for (const id of ['reviewCompany','reviewCandidate','reviewTag','reviewList','reviewEvents']) $(id).replaceChildren();
     $('reviewNote').value = '';
@@ -203,9 +205,9 @@
       const options = await api('/api/report-reviews/options');
       if (run !== epoch) return;
       const company = $('reviewCompany').value;
-      $('reviewCompany').innerHTML = '<option value="">Выберите компанию</option>' + options.companies.map((c) => `<option value="${c.id}">${escape(c.name)} (#${c.id})</option>`).join('');
-      if (options.companies.some((c) => String(c.id) === company)) $('reviewCompany').value = company;
-      else if (options.companies.some((c) => c.id === 290)) $('reviewCompany').value = '290';
+      companies = options.companies;
+      const current = companies.some((c) => String(c.id) === company) ? company : companies.some((c) => c.id === 290) ? '290' : '';
+      renderCompanies(current);
       await list();
       if (run !== epoch) return;
       const ids = new Set(reviews.map((r) => r.dashboard_id));
@@ -295,7 +297,27 @@
     switchTab(next);
     $(next === 'pending' ? 'reviewPendingTab' : 'reviewPublishedTab').focus();
   });
-  $('reviewCompany').addEventListener('change', preview);
+  function renderCompanies(current = $('reviewCompany').value) {
+    const normalize = (value) => String(value).normalize('NFKC').toLocaleLowerCase().trim();
+    const terms = normalize($('reviewCompanySearch').value).split(/\s+/).filter(Boolean);
+    const matches = companies.filter((company) => {
+      const text = normalize(`${company.name} (#${company.id})`);
+      return terms.every((term) => text.includes(term));
+    });
+    const selectedCompany = companies.find((company) => String(company.id) === current);
+    const option = (company, hidden = false) => `<option value="${company.id}" ${hidden ? 'hidden' : ''}>${escape(company.name)} (#${company.id})</option>`;
+    // Keep the committed company even when it is outside the search results.
+    const pinned = selectedCompany && !matches.includes(selectedCompany) ? option(selectedCompany, true) : '';
+    $('reviewCompany').innerHTML = '<option value="">Выберите компанию</option>' + matches.map((company) => option(company)).join('') + pinned + (!matches.length ? '<option disabled>Компании не найдены</option>' : '');
+    $('reviewCompany').value = selectedCompany ? current : '';
+    $('reviewCompanySearchStatus').textContent = terms.length ? (matches.length ? `Найдено: ${matches.length}` : 'Компании не найдены') : '';
+  }
+  $('reviewCompanySearch').addEventListener('input', () => renderCompanies());
+  $('reviewCompany').addEventListener('change', async () => {
+    $('reviewCompanySearch').value = '';
+    renderCompanies();
+    await preview();
+  });
   $('reviewCandidate').addEventListener('change', controls);
   $('refreshReviews').addEventListener('click', load);
   $('registerReview').addEventListener('click', async () => {

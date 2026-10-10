@@ -104,7 +104,15 @@
         <div class="review-toolbar">
           <label id="reviewCandidateLabel">Dashboard<select id="reviewCandidate"></select></label>
           <button id="registerReview" class="secondary-button compact" type="button">На проверку</button>
-          <label>Компания<select id="reviewCompany"><option value="">Выберите компанию</option></select></label>
+          <div class="review-company-picker">
+            <label for="reviewCompany">Компания</label>
+            <div class="review-company-search">
+              <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#search"></use></svg>
+              <input id="reviewCompanySearch" type="search" placeholder="Название или ID" aria-label="Поиск компании по названию или ID" aria-controls="reviewCompany" autocomplete="off">
+            </div>
+            <select id="reviewCompany"><option value="">Выберите компанию</option></select>
+            <span id="reviewCompanySearchStatus" class="review-company-status" role="status" aria-live="polite"></span>
+          </div>
           <button id="refreshReviews" class="icon-button" type="button" title="Обновить" aria-label="Обновить">
             <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#refresh"></use></svg>
           </button>

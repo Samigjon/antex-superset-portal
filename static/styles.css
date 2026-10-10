@@ -19,6 +19,12 @@
 .review-toolbar label { display:grid; gap:5px; font-size:12px; min-width:160px; max-width:360px; }
 .review-toolbar select { width:100%; min-height:36px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:6px; }
 .review-toolbar .compact { width:auto; min-height:36px; font-size:13px; padding:8px 12px; gap:6px; overflow:visible; }
+.review-company-picker { display:grid; gap:5px; width:360px; max-width:100%; min-width:0; }
+.review-company-picker label { min-width:0; }
+.review-company-search { position:relative; }
+.review-company-search .icon { position:absolute; left:10px; top:10px; width:16px; height:16px; color:var(--muted); pointer-events:none; }
+.review-company-search input { width:100%; min-width:0; height:36px; padding:6px 10px 6px 34px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:4px; font:inherit; font-size:13px; }
+.review-company-status { min-height:15px; color:var(--muted); font-size:11px; }
 .review-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:16px; }
 .review-tabs { display:flex; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--line); margin-bottom:16px; }
 .review-tabs button { background:transparent; border:0; border-bottom:2px solid transparent; padding:12px 4px; color:var(--muted); font:inherit; font-size:14px; }
