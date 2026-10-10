@@ -97,8 +97,12 @@
       </header>
 
       <section id="reviewsPage" class="content-section" hidden>
+        <div id="reviewTabs" class="review-tabs" role="tablist" aria-label="Статус отчётов">
+          <button id="reviewPendingTab" type="button" role="tab" aria-selected="true" aria-controls="reviewList" data-review-tab="pending">На проверке</button>
+          <button id="reviewPublishedTab" type="button" role="tab" aria-selected="false" aria-controls="reviewList" data-review-tab="published" tabindex="-1">Опубликованные</button>
+        </div>
         <div class="review-toolbar">
-          <label>Dashboard<select id="reviewCandidate"></select></label>
+          <label id="reviewCandidateLabel">Dashboard<select id="reviewCandidate"></select></label>
           <button id="registerReview" class="secondary-button compact" type="button">На проверку</button>
           <label>Компания<select id="reviewCompany"><option value="">Выберите компанию</option></select></label>
           <button id="refreshReviews" class="icon-button" type="button" title="Обновить" aria-label="Обновить">
@@ -107,7 +111,7 @@
         </div>
         <p id="reviewError" class="form-error" role="alert"></p>
         <div class="review-layout">
-          <aside id="reviewList" class="review-list" aria-label="Отчёты на проверке"></aside>
+          <aside id="reviewList" class="review-list" role="tabpanel" aria-labelledby="reviewPendingTab"></aside>
           <div class="review-workspace">
             <div class="review-heading"><h2 id="reviewTitle">Выберите отчёт</h2><span id="reviewStatus"></span></div>
             <div id="reviewEmbed" class="review-embed"></div>
@@ -123,8 +127,8 @@
                 <textarea id="reviewNote" rows="2" maxlength="4000" aria-label="Комментарий" placeholder="Комментарий"></textarea>
                 <button id="reviewComment" class="secondary-button compact" type="button">Добавить комментарий</button>
               </div>
-              <div id="reviewEvents" class="review-events"></div>
             </div>
+            <div id="reviewEvents" class="review-events"></div>
           </div>
         </div>
       </section>

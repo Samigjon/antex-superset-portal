@@ -20,6 +20,10 @@
 .review-toolbar select { width:100%; min-height:36px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:6px; }
 .review-toolbar .compact { width:auto; min-height:36px; font-size:13px; padding:8px 12px; gap:6px; overflow:visible; }
 .review-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:16px; }
+.review-tabs { display:flex; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--line); margin-bottom:16px; }
+.review-tabs button { background:transparent; border:0; border-bottom:2px solid transparent; padding:12px 4px; color:var(--muted); font:inherit; font-size:14px; }
+.review-tabs button[aria-selected="true"] { color:var(--text); border-bottom-color:var(--red); }
+.review-tabs button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 .review-list { min-width:0; max-height:75vh; overflow:auto; border-right:1px solid var(--line); padding-right:10px; }
 .review-item { display:grid; text-align:left; width:100%; gap:6px; padding:12px; background:transparent; color:var(--text); border:0; border-bottom:1px solid var(--line); }
 .review-item strong { overflow-wrap:anywhere; font-size:13px; }

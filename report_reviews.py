@@ -76,6 +76,16 @@ def register_reviews(app, portal):
             raise error_type('Tekshiruv ro‘yxatida hisobot topilmadi', 404)
         return dict(item)
 
+    def published_dashboard(client, did):
+        dashboard = remote(client, 'GET', f'api/v1/dashboard/{did}')['result']
+        if not dashboard.get('published') or not custom_tags(dashboard):
+            raise error_type('Nashr qilingan hisobot topilmadi', 404)
+        response = client.get(f'{superset_url}/api/v1/dashboard/{did}/embedded', timeout=30)
+        if response.status_code == 404:
+            raise error_type('Hisobot embed qilinmagan', 404)
+        response.raise_for_status()
+        return dashboard, response.json()['result']['uuid']
+
     def event(did, action, note=''):
         db_get().execute('INSERT INTO report_review_events '
                          '(dashboard_id,actor_id,action,note,created_at) VALUES (?,?,?,?,?)',
@@ -157,6 +167,26 @@ def register_reviews(app, portal):
         items = [dict(r) for r in db_get().execute('SELECT * FROM report_reviews ORDER BY updated_at DESC')]
         return jsonify({'reviews': items})
 
+    @app.get('/api/report-reviews/published')
+    @guarded
+    def review_published():
+        client = connect(write=True)
+        items = []
+        for dashboard in all_objects(client, 'dashboard'):
+            tags = custom_tags(dashboard)
+            if not dashboard.get('published') or not tags:
+                continue
+            response = client.get(f"{superset_url}/api/v1/dashboard/{dashboard['id']}/embedded", timeout=30)
+            if response.status_code == 404:
+                continue
+            response.raise_for_status()
+            if not response.json().get('result', {}).get('uuid'):
+                continue
+            items.append({'dashboard_id': dashboard['id'], 'title': dashboard['dashboard_title'],
+                          'status': 'published', 'tags': [{'id': t['id'], 'name': t['name']} for t in tags]})
+        items.sort(key=lambda item: (item['title'].casefold(), item['dashboard_id']))
+        return jsonify({'reviews': items})
+
     @app.get('/api/report-reviews/options')
     @guarded
     def review_options():
@@ -185,7 +215,8 @@ def register_reviews(app, portal):
     @app.get('/api/report-reviews/<int:did>/events')
     @guarded
     def review_events(did):
-        row(did)
+        if not db_get().execute('SELECT 1 FROM report_reviews WHERE dashboard_id=?', (did,)).fetchone():
+            published_dashboard(connect(write=True), did)
         events = [dict(r) for r in db_get().execute(
             'SELECT e.*, u.full_name AS actor FROM report_review_events e '
             'LEFT JOIN users u ON u.id=e.actor_id WHERE dashboard_id=? ORDER BY e.id DESC', (did,))]
@@ -194,15 +225,19 @@ def register_reviews(app, portal):
     @app.post('/api/report-reviews/<int:did>/preview')
     @guarded
     def review_preview(did):
-        item = row(did)
+        stored = db_get().execute('SELECT * FROM report_reviews WHERE dashboard_id=?', (did,)).fetchone()
         cid = int(request.get_json()['company_id'])
         client = connect(write=True)
         if cid not in {c['id'] for c in companies(client)}:
             return jsonify({'error': 'Kompaniya topilmadi'}), 400
         dashboard, digest = snapshot(client, did)
-        if item['status'] != 'published':
+        if dashboard.get('published') and custom_tags(dashboard):
+            _, uuid = published_dashboard(client, did)
+        elif stored and stored['status'] != 'published':
             ensure_hidden(dashboard)
-        uuid = embed(client, did)
+            uuid = embed(client, did)
+        else:
+            raise error_type('Tekshiruv ro\u2018yxatida hisobot topilmadi', 404)
         token = remote(client, 'POST', 'api/v1/security/guest_token/', json={
             'user': {'username': f"review-{g.current_user['id']}", 'first_name': 'Review', 'last_name': 'Admin'},
             'resources': [{'type': 'dashboard', 'id': uuid}],

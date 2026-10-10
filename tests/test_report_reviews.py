@@ -38,17 +38,22 @@ class ReviewsTest(unittest.TestCase):
         self.chart = {'id': 9, 'slice_name': 'Sales', 'params': '{"datasource":"12__table"}'}
         self.dataset = {'id': 12, 'database': {'id': 2}, 'columns': [{'column_name': 'company_id'}], 'sql': 'SELECT company_id, amount FROM sales'}
         self.calls = []
+        self.embed_status = 200
         class Response:
             status_code = 200
             def raise_for_status(self): pass
             def json(self): return {'result': {'uuid': 'review-uuid', 'allowed_domains': []}}
         class Client:
-            def get(self, *args, **kwargs): return Response()
+            def get(inner, *args, **kwargs):
+                response = Response()
+                response.status_code = self.embed_status
+                return response
         def remote(session, method, path, message, **kwargs):
             path = path.lstrip('/')
             self.calls.append((method, path, kwargs.get('json')))
             if path == 'api/v1/sqllab/execute/': return {'status':'success','data':[{'id':290,'company_name':'Test'},{'id':261,'company_name':'UOS'}]}
             if path == 'api/v1/security/guest_token/': return {'token':'guest'}
+            if path == 'api/v1/dashboard/': return {'result':[self.dashboard], 'count':1}
             if path == 'api/v1/dashboard/5/charts': return {'result':[{'id':9}]}
             if path == 'api/v1/chart/9': return {'result':self.chart}
             if path.startswith('api/v1/dataset/'): return {'result':self.dataset}
@@ -65,12 +70,14 @@ class ReviewsTest(unittest.TestCase):
                 class Login(Response):
                     def json(inner): return {'access_token':'access'}
                 return Login()
-            def get(self, url, **kwargs):
+            def get(inner, url, **kwargs):
                 if url.endswith('csrf_token/'):
                     class Csrf(Response):
                         def json(inner): return {'result':'csrf'}
                     return Csrf()
-                return Response()
+                response = Response()
+                response.status_code = self.embed_status
+                return response
             def request(self, method, url, **kwargs):
                 data = remote(self,method,url.split('example.test/')[1],'',**kwargs)
                 class Result(Response):
@@ -150,6 +157,39 @@ class ReviewsTest(unittest.TestCase):
         self.assertEqual(self.post(action,{'action':'changes'}).status_code,400)
         self.assertEqual(self.post(action,{'action':'changes','note':'Wrong total'}).json['review']['status'],'changes')
         self.assertEqual(self.client.get('/api/report-reviews/5/events').json['events'][0]['note'],'Wrong total')
+
+    def test_published_catalog_requires_tag_publication_and_embed(self):
+        path = '/api/report-reviews/published'
+        self.assertEqual(self.app.test_client().get(path).status_code, 401)
+        self.dashboard['published'] = True
+        self.dashboard['tags'] = [{'id': 9, 'name': 'type:dashboard', 'type': 2}]
+        self.assertEqual(self.client.get(path).json['reviews'], [])
+        self.dashboard['tags'] = [{'id': 7, 'name': 'Sales', 'type': 1}]
+        self.dashboard['published'] = False
+        self.assertEqual(self.client.get(path).json['reviews'], [])
+        self.dashboard['published'] = True
+        self.embed_status = 404
+        self.assertEqual(self.client.get(path).json['reviews'], [])
+        self.embed_status = 200
+        items = self.client.get(path).json['reviews']
+        self.assertEqual(items, [{'dashboard_id': 5, 'title': 'Sales', 'status': 'published',
+                                 'tags': [{'id': 7, 'name': 'Sales'}]}])
+        self.assertEqual(self.client.get('/api/report-reviews').json['reviews'], [])
+        self.assertFalse(any(method != 'GET' for method, _, _ in self.calls))
+
+    def test_existing_published_preview_is_isolated_without_fake_history(self):
+        self.dashboard.update(published=True, tags=[{'id': 7, 'name': 'Sales', 'type': 1}])
+        self.assertEqual(self.client.get('/api/report-reviews/5/events').json['events'], [])
+        for cid in (290, 261):
+            response = self.post('/api/report-reviews/5/preview', {'company_id': cid})
+            self.assertEqual(response.status_code, 200)
+            token_call = next(c for c in reversed(self.calls) if c[1].endswith('guest_token/'))
+            self.assertEqual(token_call[2]['rls'], [{'clause': f'company_id = {cid}'}])
+        self.assertEqual(self.client.get('/api/report-reviews').json['reviews'], [])
+        self.assertEqual(self.post('/api/report-reviews/5/action', {'action': 'approve'}).status_code, 404)
+        self.dashboard['published'] = False
+        self.assertEqual(self.post('/api/report-reviews/5/preview', {'company_id': 290}).status_code, 404)
+        self.assertEqual(self.client.get('/api/report-reviews/5/events').status_code, 404)
 
 
 if __name__ == '__main__':
