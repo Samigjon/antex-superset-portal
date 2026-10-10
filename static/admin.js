@@ -1151,7 +1151,7 @@ document.querySelectorAll(".nav-item").forEach((button) => {
       catalog: "Ma'lumotlar katalogi",
       datasets: "Superset datasetlar",
       metabase: "Metabase querylar",
-      reviews: "Проверка отчётов",
+      reviews: "Проверка отчётов Superset",
     }[page];
     elements.addUserButton.hidden = page !== "users";
     elements.addDatasetButton.hidden = page !== "datasets";
