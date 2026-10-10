@@ -31,7 +31,7 @@
 .review-tabs button[aria-selected="true"] { color:var(--text); border-bottom-color:var(--red); }
 .review-tabs button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 .review-list { min-width:0; max-height:75vh; overflow:auto; border-right:1px solid var(--line); padding-right:10px; }
-.review-sidebar { min-width:0; display:flex; flex-direction:column; min-height:160px; max-height:calc(100vh - 320px); }
+.review-sidebar { min-width:0; display:flex; flex-direction:column; min-height:160px; max-height:calc(100vh - 380px); }
 .review-sidebar .review-list { min-height:0; flex:1; }
 .review-sidebar .review-save-order { width:100%; flex:none; margin-top:10px; font-size:12px; padding:8px 12px; gap:6px; overflow:visible; }
 .review-group { border-bottom:1px solid var(--line); }
