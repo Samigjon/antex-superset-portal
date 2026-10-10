@@ -15,6 +15,29 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.review-toolbar { display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:12px; }
+.review-toolbar label { display:grid; gap:5px; font-size:12px; min-width:160px; max-width:360px; }
+.review-toolbar select { width:100%; min-height:36px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:6px; }
+.review-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:16px; }
+.review-list { min-width:0; max-height:75vh; overflow:auto; border-right:1px solid var(--line); padding-right:10px; }
+.review-item { display:grid; text-align:left; width:100%; gap:6px; padding:12px; background:transparent; color:var(--text); border:0; border-bottom:1px solid var(--line); }
+.review-item strong { overflow-wrap:anywhere; font-size:13px; }
+.review-item span { font-size:12px; color:var(--muted); }
+.review-item.selected { background:var(--panel-strong); border-left:3px solid var(--red); }
+.review-workspace { min-width:0; }
+.review-heading { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+.review-heading h2 { font-size:17px; margin:0; overflow-wrap:anywhere; }
+.review-heading span { color:var(--muted); font-size:12px; }
+.review-embed { height:65vh; min-height:420px; background:#f7f8fa; margin-bottom:12px; }
+.review-embed:empty { background:var(--panel); }
+.review-embed iframe { width:100%; height:100%; border:0; display:block; }
+.review-comment { display:flex; gap:10px; align-items:start; }
+.review-comment textarea { width:100%; min-width:0; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:10px; }
+.review-events { font-size:12px; color:var(--muted); margin-top:16px; }
+.review-events > div { padding:8px 0; border-bottom:1px solid var(--line); }
+.review-events p { white-space:pre-wrap; overflow-wrap:anywhere; margin:5px 0; }
+@media(max-width:900px) { .review-layout { grid-template-columns:minmax(0,1fr); } .review-list { max-height:180px; border-right:0; } .review-comment { flex-wrap:wrap; } .review-toolbar label { min-width:0; width:100%; max-width:none; } }
+
 * {
   box-sizing: border-box;
 }

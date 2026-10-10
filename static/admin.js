@@ -125,6 +125,7 @@ async function api(path, options = {}) {
 }
 
 function showLogin() {
+  window.reportReviews?.close();
   state.csrfToken = "";
   state.currentUser = null;
   elements.appView.hidden = true;
@@ -133,6 +134,7 @@ function showLogin() {
 
 function showApp(user) {
   state.currentUser = user;
+  document.querySelector('#reviewsNav').hidden = user.role !== 'admin';
   elements.loginView.hidden = true;
   elements.appView.hidden = false;
   document.querySelector("#currentName").textContent = user.full_name;
@@ -1142,11 +1144,14 @@ document.querySelectorAll(".nav-item").forEach((button) => {
     elements.catalogPage.hidden = page !== "catalog";
     document.querySelector("#datasetsPage").hidden = page !== "datasets";
     elements.metabasePage.hidden = page !== "metabase";
+    document.querySelector('#reviewsPage').hidden = page !== 'reviews';
+    if (page !== 'reviews') window.reportReviews?.close();
     document.querySelector("#pageTitle").textContent = {
       users: "Foydalanuvchilar",
       catalog: "Ma'lumotlar katalogi",
       datasets: "Superset datasetlar",
       metabase: "Metabase querylar",
+      reviews: "Проверка отчётов",
     }[page];
     elements.addUserButton.hidden = page !== "users";
     elements.addDatasetButton.hidden = page !== "datasets";
@@ -1156,6 +1161,7 @@ document.querySelectorAll(".nav-item").forEach((button) => {
       if (page === "datasets") await loadDatasets();
       if (page === "catalog") await loadClickHouseCatalog();
       if (page === "metabase") await loadMetabaseQueries();
+      if (page === "reviews") await window.reportReviews.load();
     } catch (error) {
       showToast(error.message);
     }

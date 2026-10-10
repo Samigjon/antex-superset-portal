@@ -456,7 +456,8 @@ def security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'self'"
+        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+        f"frame-src 'self' {SUPERSET_URL or 'https://superset.antexpert.uz'}; frame-ancestors 'self'"
     )
     return response
 
@@ -1326,6 +1327,10 @@ def delete_user(user_id):
 
 with app.app_context():
     init_db()
+
+from report_reviews import register_reviews
+
+register_reviews(app, globals())
 
 
 if __name__ == "__main__":

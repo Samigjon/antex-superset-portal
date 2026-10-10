@@ -38,6 +38,10 @@
         <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#chevron-left"></use></svg>
       </button>
       <nav class="sidebar-nav" aria-label="Asosiy navigatsiya">
+        <button id="reviewsNav" class="nav-item" type="button" data-page="reviews" title="Проверка отчётов" hidden>
+          <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#table"></use></svg>
+          <span>Проверка отчётов</span>
+        </button>
         <button class="nav-item active" type="button" data-page="users" title="Foydalanuvchilar">
           <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#users"></use></svg>
           <span>Foydalanuvchilar</span>
@@ -91,6 +95,39 @@
           </button>
         </div>
       </header>
+
+      <section id="reviewsPage" class="content-section" hidden>
+        <div class="review-toolbar">
+          <label>Dashboard<select id="reviewCandidate"></select></label>
+          <button id="registerReview" class="secondary-button compact" type="button">На проверку</button>
+          <label>Компания<select id="reviewCompany"><option value="">Выберите компанию</option></select></label>
+          <button id="refreshReviews" class="icon-button" type="button" title="Обновить" aria-label="Обновить">
+            <svg class="icon" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#refresh"></use></svg>
+          </button>
+        </div>
+        <p id="reviewError" class="form-error" role="alert"></p>
+        <div class="review-layout">
+          <aside id="reviewList" class="review-list" aria-label="Отчёты на проверке"></aside>
+          <div class="review-workspace">
+            <div class="review-heading"><h2 id="reviewTitle">Выберите отчёт</h2><span id="reviewStatus"></span></div>
+            <div id="reviewEmbed" class="review-embed"></div>
+            <div id="reviewActions" hidden>
+              <div class="review-toolbar">
+                <button id="reviewTested" class="secondary-button compact" type="button">Проверено</button>
+                <button id="reviewApprove" class="secondary-button compact" type="button">Одобрить</button>
+                <button id="reviewChanges" class="secondary-button compact" type="button">На доработку</button>
+                <label>Раздел<select id="reviewTag"></select></label>
+                <button id="reviewPublish" class="primary-button compact" type="button">Опубликовать</button>
+              </div>
+              <div class="review-comment">
+                <textarea id="reviewNote" rows="2" maxlength="4000" aria-label="Комментарий" placeholder="Комментарий"></textarea>
+                <button id="reviewComment" class="secondary-button compact" type="button">Добавить комментарий</button>
+              </div>
+              <div id="reviewEvents" class="review-events"></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section id="usersPage" class="content-section">
         <div class="table-tools">
@@ -629,6 +666,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="{{ url_for('static', filename='admin.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='superset-embedded-sdk-0.4.0.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='report-reviews.js') }}" defer></script>
 </body>
 </html>
 
